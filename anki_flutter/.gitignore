@@ -1,3 +1,7 @@
+# Windows installer build output/downloaded binaries - not source.
+/installer/output/
+/installer/vc_redist.x64.exe
+
 # Miscellaneous
 *.class
 *.log

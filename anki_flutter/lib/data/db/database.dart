@@ -31,16 +31,20 @@ class AppDatabase extends _$AppDatabase {
   /// every startup.
   Future<void> ensureSeeded() async {
     await transaction(() async {
-      final metaExists = await select(collectionMeta).getSingleOrNull();
+      // getSingleOrNull() throws if more than one row comes back, so every
+      // "does this table already have anything in it" check here is capped
+      // with limit(1) - otherwise this crashes on every startup after the
+      // first, once these tables legitimately hold more than one row.
+      final metaExists = await (select(collectionMeta)..limit(1)).getSingleOrNull();
       if (metaExists == null) {
         await into(collectionMeta).insert(const CollectionMetaCompanion(id: Value(1)));
       }
 
-      final anyDeckConfig = await select(deckConfigs).getSingleOrNull();
+      final anyDeckConfig = await (select(deckConfigs)..limit(1)).getSingleOrNull();
       var deckConfigId = anyDeckConfig?.id;
       deckConfigId ??= await into(deckConfigs).insert(const DeckConfigsCompanion(name: Value('Default')));
 
-      final anyDeck = await select(decks).getSingleOrNull();
+      final anyDeck = await (select(decks)..limit(1)).getSingleOrNull();
       if (anyDeck == null) {
         await into(decks).insert(DecksCompanion(name: const Value('Default'), deckConfigId: Value(deckConfigId)));
       }

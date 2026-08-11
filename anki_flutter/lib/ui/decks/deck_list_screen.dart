@@ -7,6 +7,7 @@ import '../../data/repositories/study_repository.dart';
 import '../editor/note_editor_screen.dart';
 import '../import/import_screen.dart';
 import '../study/study_screen.dart';
+import '../theme/app_theme.dart';
 
 class DeckListScreen extends StatelessWidget {
   const DeckListScreen({super.key});
@@ -20,10 +21,11 @@ class DeckListScreen extends StatelessWidget {
         title: const Text('Колоды'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.file_upload_outlined),
+            icon: const Icon(Icons.ios_share_outlined, size: 20),
             tooltip: 'Импорт .apkg',
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ImportScreen())),
           ),
+          const SizedBox(width: AppSpacing.sm),
         ],
       ),
       body: StreamBuilder<List<Deck>>(
@@ -31,29 +33,44 @@ class DeckListScreen extends StatelessWidget {
         builder: (context, snapshot) {
           final decks = snapshot.data ?? const <Deck>[];
           if (decks.isEmpty) {
-            return const Center(child: Text('Пока нет колод — создайте первую кнопкой ниже.'));
+            return _EmptyState(onCreateDeck: () => _createDeck(context));
           }
-          return ListView.separated(
-            itemCount: decks.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) => _DeckTile(deck: decks[index]),
+          return Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpacing.lg,
+                  AppSpacing.sm,
+                  AppSpacing.lg,
+                  120, // leave room for the floating actions
+                ),
+                itemCount: decks.length,
+                itemBuilder: (context, index) => Padding(
+                  padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                  child: _DeckTile(deck: decks[index]),
+                ),
+              ),
+            ),
           );
         },
       ),
       floatingActionButton: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
+          FloatingActionButton(
+            heroTag: 'addDeck',
+            tooltip: 'Новая колода',
+            onPressed: () => _createDeck(context),
+            child: const Icon(Icons.add_outlined),
+          ),
+          const SizedBox(width: AppSpacing.sm),
           FloatingActionButton.extended(
             heroTag: 'addNote',
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NoteEditorScreen())),
-            icon: const Icon(Icons.note_add_outlined),
+            icon: const Icon(Icons.note_add_outlined, size: 20),
             label: const Text('Карточка'),
-          ),
-          const SizedBox(width: 12),
-          FloatingActionButton(
-            heroTag: 'addDeck',
-            onPressed: () => _createDeck(context),
-            child: const Icon(Icons.create_new_folder_outlined),
           ),
         ],
       ),
@@ -66,7 +83,12 @@ class DeckListScreen extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Новая колода'),
-        content: TextField(controller: controller, autofocus: true, decoration: const InputDecoration(hintText: 'Название колоды')),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Название колоды'),
+          onSubmitted: (v) => Navigator.pop(context, v.trim()),
+        ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
           FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Создать')),
@@ -79,6 +101,42 @@ class DeckListScreen extends StatelessWidget {
   }
 }
 
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({required this.onCreateDeck});
+
+  final VoidCallback onCreateDeck;
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = context.appColors.muted;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.style_outlined, size: 40, color: muted),
+            const SizedBox(height: AppSpacing.md),
+            Text('Пока нет колод', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.xs),
+            Text(
+              'Создайте первую, чтобы начать добавлять карточки',
+              style: Theme.of(context).textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            OutlinedButton.icon(
+              onPressed: onCreateDeck,
+              icon: const Icon(Icons.add_outlined, size: 18),
+              label: const Text('Новая колода'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _DeckTile extends StatelessWidget {
   const _DeckTile({required this.deck});
 
@@ -87,42 +145,68 @@ class _DeckTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final study = context.read<StudyRepository>();
+    final colors = context.appColors;
+    final textTheme = Theme.of(context).textTheme;
+
     return FutureBuilder<DueQueueCounts>(
       future: study.counts(deck.id),
       builder: (context, snapshot) {
         final counts = snapshot.data;
-        return ListTile(
-          title: Text(deck.name),
-          subtitle: counts == null
-              ? null
-              : Row(
-                  children: [
-                    _countChip(counts.newCount, Colors.blue),
-                    const SizedBox(width: 8),
-                    _countChip(counts.learningCount, Colors.red),
-                    const SizedBox(width: 8),
-                    _countChip(counts.reviewCount, Colors.green),
-                  ],
-                ),
-          trailing: PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'delete') _confirmDelete(context);
-            },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'delete', child: Text('Удалить колоду')),
-            ],
+        final hasDue = (counts?.total ?? 0) > 0;
+
+        return Material(
+          color: Theme.of(context).cardTheme.color,
+          borderRadius: BorderRadius.circular(kAppRadius),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(kAppRadius),
+            onTap: !hasDue
+                ? null
+                : () => Navigator.of(context)
+                    .push(MaterialPageRoute(builder: (_) => StudyScreen(deckId: deck.id, deckName: deck.name))),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(kAppRadius),
+                border: Border.all(color: colors.border),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(deck.name, style: textTheme.titleMedium),
+                        if (counts != null) ...[
+                          const SizedBox(height: AppSpacing.xs),
+                          Row(
+                            children: [
+                              _CountPill(label: 'нов.', count: counts.newCount, color: AppColors.easy),
+                              const SizedBox(width: AppSpacing.sm),
+                              _CountPill(label: 'изуч.', count: counts.learningCount, color: AppColors.again),
+                              const SizedBox(width: AppSpacing.sm),
+                              _CountPill(label: 'повт.', count: counts.reviewCount, color: AppColors.good),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  PopupMenuButton<String>(
+                    icon: Icon(Icons.more_horiz, color: colors.muted, size: 20),
+                    onSelected: (value) {
+                      if (value == 'delete') _confirmDelete(context);
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(value: 'delete', child: Text('Удалить колоду')),
+                    ],
+                  ),
+                ],
+              ),
+            ),
           ),
-          onTap: (counts?.total ?? 0) == 0
-              ? null
-              : () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StudyScreen(deckId: deck.id, deckName: deck.name))),
         );
       },
     );
-  }
-
-  Widget _countChip(int count, Color color) {
-    if (count == 0) return const SizedBox.shrink();
-    return Text('$count', style: TextStyle(color: color, fontWeight: FontWeight.bold));
   }
 
   Future<void> _confirmDelete(BuildContext context) async {
@@ -140,5 +224,29 @@ class _DeckTile extends StatelessWidget {
     if (confirmed == true && context.mounted) {
       await context.read<DeckRepository>().deleteDeck(deck.id);
     }
+  }
+}
+
+class _CountPill extends StatelessWidget {
+  const _CountPill({required this.label, required this.count, required this.color});
+
+  final String label;
+  final int count;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    if (count == 0) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        '$count $label',
+        style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w600),
+      ),
+    );
   }
 }

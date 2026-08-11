@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../data/db/database.dart';
 import '../../data/repositories/notetype_repository.dart';
+import '../theme/app_theme.dart';
 
 /// Anki's own "Manage Note Types": list, create and delete note types. Field
 /// and template editing for an *existing* note type is intentionally left
@@ -20,25 +21,43 @@ class NotetypeManagerScreen extends StatelessWidget {
         stream: repo.watchNotetypes(),
         builder: (context, snapshot) {
           final notetypes = snapshot.data ?? const <Notetype>[];
-          return ListView.separated(
-            itemCount: notetypes.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, i) {
-              final nt = notetypes[i];
-              return ListTile(
-                title: Text(nt.name),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () => _confirmDelete(context, nt),
-                ),
-              );
-            },
+          return Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: ListView.builder(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, 100),
+                itemCount: notetypes.length,
+                itemBuilder: (context, i) {
+                  final nt = notetypes[i];
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(kAppRadius),
+                        border: Border.all(color: context.appColors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(nt.name, style: Theme.of(context).textTheme.bodyLarge)),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 19),
+                            onPressed: () => _confirmDelete(context, nt),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
           );
         },
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _createNotetype(context),
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add_outlined),
       ),
     );
   }
@@ -71,7 +90,7 @@ class NotetypeManagerScreen extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Название')),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpacing.md),
             TextField(controller: fieldsController, decoration: const InputDecoration(labelText: 'Поля (через запятую)')),
           ],
         ),

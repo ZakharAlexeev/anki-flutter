@@ -5,6 +5,7 @@ import '../../data/db/database.dart';
 import '../../data/repositories/deck_repository.dart';
 import '../../data/repositories/note_repository.dart';
 import '../../data/repositories/notetype_repository.dart';
+import '../theme/app_theme.dart';
 import 'notetype_manager_screen.dart';
 
 /// Create-a-note screen: pick a note type + deck, fill in the note type's
@@ -83,10 +84,11 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         title: const Text('Новая карточка'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.style_outlined),
+            icon: const Icon(Icons.style_outlined, size: 20),
             tooltip: 'Типы карточек',
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NotetypeManagerScreen())),
           ),
+          const SizedBox(width: AppSpacing.sm),
         ],
       ),
       body: StreamBuilder<List<Notetype>>(
@@ -94,7 +96,9 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
         builder: (context, ntSnapshot) {
           final notetypes = ntSnapshot.data ?? const <Notetype>[];
           if (notetypes.isEmpty) {
-            return const Center(child: Text('Сначала создайте тип карточки'));
+            return Center(
+              child: Text('Сначала создайте тип карточки', style: Theme.of(context).textTheme.bodySmall),
+            );
           }
           _notetype ??= notetypes.first;
           if (_fields.isEmpty && _fieldControllers.isEmpty) {
@@ -108,45 +112,57 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
               final decks = deckSnapshot.data ?? const <Deck>[];
               _deck ??= decks.isNotEmpty ? decks.first : null;
 
-              return ListView(
-                padding: const EdgeInsets.all(16),
-                children: [
-                  DropdownButtonFormField<Notetype>(
-                    initialValue: notetypes.contains(_notetype) ? _notetype : notetypes.first,
-                    decoration: const InputDecoration(labelText: 'Тип карточки'),
-                    items: [for (final nt in notetypes) DropdownMenuItem(value: nt, child: Text(nt.name))],
-                    onChanged: _onNotetypeChanged,
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<Deck>(
-                    initialValue: decks.contains(_deck) ? _deck : (decks.isNotEmpty ? decks.first : null),
-                    decoration: const InputDecoration(labelText: 'Колода'),
-                    items: [for (final d in decks) DropdownMenuItem(value: d, child: Text(d.name))],
-                    onChanged: (d) => setState(() => _deck = d),
-                  ),
-                  const SizedBox(height: 20),
-                  for (final field in _fields)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: TextField(
-                        controller: _fieldControllers[field.ord],
-                        maxLines: null,
-                        decoration: InputDecoration(labelText: field.name, border: const OutlineInputBorder()),
+              return Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 560),
+                  child: ListView(
+                    padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
+                    children: [
+                      DropdownButtonFormField<Notetype>(
+                        initialValue: notetypes.contains(_notetype) ? _notetype : notetypes.first,
+                        decoration: const InputDecoration(labelText: 'Тип карточки'),
+                        items: [for (final nt in notetypes) DropdownMenuItem(value: nt, child: Text(nt.name))],
+                        onChanged: _onNotetypeChanged,
                       ),
-                    ),
-                  TextField(
-                    controller: _tagsController,
-                    decoration: const InputDecoration(labelText: 'Теги (через пробел)', border: OutlineInputBorder()),
+                      const SizedBox(height: AppSpacing.md),
+                      DropdownButtonFormField<Deck>(
+                        initialValue: decks.contains(_deck) ? _deck : (decks.isNotEmpty ? decks.first : null),
+                        decoration: const InputDecoration(labelText: 'Колода'),
+                        items: [for (final d in decks) DropdownMenuItem(value: d, child: Text(d.name))],
+                        onChanged: (d) => setState(() => _deck = d),
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      for (final field in _fields)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                          child: TextField(
+                            controller: _fieldControllers[field.ord],
+                            maxLines: null,
+                            decoration: InputDecoration(labelText: field.name),
+                          ),
+                        ),
+                      TextField(
+                        controller: _tagsController,
+                        decoration: const InputDecoration(labelText: 'Теги (через пробел)'),
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      SizedBox(
+                        height: 48,
+                        child: FilledButton(
+                          onPressed: (_deck == null || _saving) ? null : _save,
+                          child: _saving
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Text('Сохранить'),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 20),
-                  FilledButton(
-                    onPressed: (_deck == null || _saving) ? null : _save,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: _saving ? const CircularProgressIndicator() : const Text('Сохранить'),
-                    ),
-                  ),
-                ],
+                ),
               );
             },
           );

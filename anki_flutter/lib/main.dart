@@ -7,6 +7,7 @@ import 'data/repositories/note_repository.dart';
 import 'data/repositories/notetype_repository.dart';
 import 'data/repositories/study_repository.dart';
 import 'ui/decks/deck_list_screen.dart';
+import 'ui/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,8 +51,8 @@ class AnkiFlutterApp extends StatelessWidget {
       ],
       child: MaterialApp(
         title: 'Anki Flutter',
-        theme: ThemeData(colorSchemeSeed: Colors.indigo, useMaterial3: true),
-        darkTheme: ThemeData(colorSchemeSeed: Colors.indigo, brightness: Brightness.dark, useMaterial3: true),
+        theme: AppTheme.light(),
+        darkTheme: AppTheme.dark(),
         home: const DeckListScreen(),
       ),
     );

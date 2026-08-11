@@ -81,7 +81,7 @@ class NotetypeRepository {
   /// Creates the classic "Basic" and "Basic (and reversed card)" note types
   /// on first launch, mirroring a fresh Anki profile.
   Future<void> ensureSeeded() async {
-    final any = await _db.select(_db.notetypes).getSingleOrNull();
+    final any = await (_db.select(_db.notetypes)..limit(1)).getSingleOrNull();
     if (any != null) return;
 
     await createNotetype(

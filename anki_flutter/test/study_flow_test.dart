@@ -4,6 +4,7 @@ import 'package:anki_flutter/data/repositories/note_repository.dart';
 import 'package:anki_flutter/data/repositories/notetype_repository.dart';
 import 'package:anki_flutter/data/repositories/study_repository.dart';
 import 'package:anki_flutter/ui/study/study_screen.dart';
+import 'package:anki_flutter/ui/theme/app_theme.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -49,7 +50,7 @@ void main() {
         Provider<NoteRepository>.value(value: notes),
         Provider<StudyRepository>.value(value: study),
       ],
-      child: MaterialApp(home: child),
+      child: MaterialApp(theme: AppTheme.light(), home: child),
     );
   }
 

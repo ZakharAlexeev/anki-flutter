@@ -2,11 +2,20 @@ import 'package:drift/drift.dart';
 
 import '../../domain/scheduler/models.dart' show CardQueue;
 
-/// IDs default to the current epoch-millis timestamp, matching Anki's own
-/// scheme - this keeps imported Anki IDs and locally-created IDs in the same
-/// space and lets an .apkg import simply carry over the source IDs (with a
-/// collision offset applied by the importer when needed).
-int epochMillisId() => DateTime.now().millisecondsSinceEpoch;
+/// IDs default to a locally-monotonic microsecond timestamp. Plain
+/// `DateTime.now().millisecondsSinceEpoch` collides when two rows are
+/// inserted in the same millisecond - e.g. creating a note from a two-sided
+/// note type inserts two cards back to back - which trips SQLite's UNIQUE
+/// constraint on the primary key. Bumping to the previous value + 1 whenever
+/// the clock hasn't advanced keeps every locally-generated ID unique while
+/// staying far below the epoch-millis IDs an imported .apkg carries over, so
+/// the two ID spaces never collide either.
+int _lastIssuedId = 0;
+int epochMillisId() {
+  final now = DateTime.now().microsecondsSinceEpoch;
+  _lastIssuedId = now > _lastIssuedId ? now : _lastIssuedId + 1;
+  return _lastIssuedId;
+}
 
 class DeckConfigs extends Table {
   IntColumn get id => integer().clientDefault(epochMillisId)();

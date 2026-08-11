@@ -10,6 +10,14 @@ set(BINARY_NAME "anki_flutter")
 # versions of CMake.
 cmake_policy(VERSION 3.14...3.25)
 
+# Statically link the MSVC C/C++ runtime into our own executable and plugins
+# so this app's code doesn't need the Visual C++ Redistributable installed.
+# Note: this does not cover flutter_windows.dll itself, which Google ships
+# prebuilt and dynamically linked - see the bundled installer for that half
+# of the fix.
+cmake_policy(SET CMP0091 NEW)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 # Define build configuration option.
 get_property(IS_MULTICONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 if(IS_MULTICONFIG)

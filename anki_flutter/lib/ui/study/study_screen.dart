@@ -6,6 +6,7 @@ import '../../data/repositories/note_repository.dart';
 import '../../data/repositories/notetype_repository.dart';
 import '../../data/repositories/study_repository.dart';
 import '../../domain/template_renderer.dart';
+import '../theme/app_theme.dart';
 import 'html_view.dart';
 
 class StudyScreen extends StatefulWidget {
@@ -80,41 +81,77 @@ class _StudyScreenState extends State<StudyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.deckName)),
+      appBar: AppBar(
+        title: Text(widget.deckName),
+        actions: [
+          if (_queue.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.lg),
+              child: Center(
+                child: Text('${_queue.length}', style: Theme.of(context).textTheme.bodySmall),
+              ),
+            ),
+        ],
+      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _queue.isEmpty
-              ? const Center(child: Text('На сегодня карточек не осталось 🎉'))
+              ? const _AllDoneState()
               : _buildStudyBody(),
     );
   }
 
   Widget _buildStudyBody() {
     final rendered = _rendered;
+    final colors = context.appColors;
     return Column(
       children: [
         Expanded(
           child: rendered == null
               ? const Center(child: CircularProgressIndicator())
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      HtmlView(html: rendered.questionHtml),
-                      if (_showAnswer) ...[
-                        const Padding(padding: EdgeInsets.symmetric(vertical: 16), child: Divider()),
-                        HtmlView(html: rendered.answerHtml),
-                      ],
-                    ],
+              : Align(
+                  alignment: Alignment.topCenter,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 640),
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xl),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xl),
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          borderRadius: BorderRadius.circular(kAppRadius),
+                          border: Border.all(color: colors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            HtmlView(html: rendered.questionHtml),
+                            if (_showAnswer) ...[
+                              Padding(
+                                padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                                child: Divider(color: colors.border),
+                              ),
+                              HtmlView(html: rendered.answerHtml),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
                   ),
                 ),
         ),
         SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: _showAnswer ? _buildAnswerButtons() : _buildShowAnswerButton(),
+          child: Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 640),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
+                child: _showAnswer ? _buildAnswerButtons() : _buildShowAnswerButton(),
+              ),
+            ),
           ),
         ),
       ],
@@ -124,9 +161,10 @@ class _StudyScreenState extends State<StudyScreen> {
   Widget _buildShowAnswerButton() {
     return SizedBox(
       width: double.infinity,
+      height: 48,
       child: FilledButton(
         onPressed: () => setState(() => _showAnswer = true),
-        child: const Padding(padding: EdgeInsets.symmetric(vertical: 12), child: Text('Показать ответ')),
+        child: const Text('Показать ответ'),
       ),
     );
   }
@@ -135,30 +173,42 @@ class _StudyScreenState extends State<StudyScreen> {
     final previews = _previews;
     return Row(
       children: [
-        Expanded(child: _ratingButton(Rating.again, 'Снова', Colors.red, previews)),
-        const SizedBox(width: 8),
-        Expanded(child: _ratingButton(Rating.hard, 'Трудно', Colors.orange, previews)),
-        const SizedBox(width: 8),
-        Expanded(child: _ratingButton(Rating.good, 'Хорошо', Colors.green, previews)),
-        const SizedBox(width: 8),
-        Expanded(child: _ratingButton(Rating.easy, 'Легко', Colors.blue, previews)),
+        Expanded(child: _ratingButton(Rating.again, 'Снова', AppColors.again, previews)),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(child: _ratingButton(Rating.hard, 'Трудно', AppColors.hard, previews)),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(child: _ratingButton(Rating.good, 'Хорошо', AppColors.good, previews)),
+        const SizedBox(width: AppSpacing.sm),
+        Expanded(child: _ratingButton(Rating.easy, 'Легко', AppColors.easy, previews)),
       ],
     );
   }
 
   Widget _ratingButton(Rating rating, String label, Color color, Map<Rating, CardSchedState>? previews) {
     final preview = previews?[rating];
-    return FilledButton(
-      style: FilledButton.styleFrom(backgroundColor: color),
-      onPressed: () => _answer(rating),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(label),
-            if (preview != null) Text(_intervalLabel(preview), style: const TextStyle(fontSize: 11)),
-          ],
+    return Material(
+      color: color.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(kAppRadiusSmall),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(kAppRadiusSmall),
+        onTap: () => _answer(rating),
+        child: Container(
+          height: 60,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(kAppRadiusSmall),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13)),
+              if (preview != null) ...[
+                const SizedBox(height: 2),
+                Text(_intervalLabel(preview), style: TextStyle(color: color.withValues(alpha: 0.75), fontSize: 11)),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -175,5 +225,26 @@ class _StudyScreenState extends State<StudyScreen> {
     if (days < 30) return '$days д';
     if (days < 365) return '${(days / 30).round()} мес';
     return '${(days / 365).toStringAsFixed(1)} г';
+  }
+}
+
+class _AllDoneState extends StatelessWidget {
+  const _AllDoneState();
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = context.appColors.muted;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.check_circle_outline, size: 40, color: muted),
+          const SizedBox(height: AppSpacing.md),
+          Text('На сегодня всё', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.xs),
+          Text('Карточек для повторения больше нет', style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    );
   }
 }

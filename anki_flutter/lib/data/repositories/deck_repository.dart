@@ -12,7 +12,7 @@ class DeckRepository {
   Future<Deck> deckById(int id) => (_db.select(_db.decks)..where((d) => d.id.equals(id))).getSingle();
 
   Future<int> _defaultDeckConfigId() async {
-    final existing = await _db.select(_db.deckConfigs).getSingleOrNull();
+    final existing = await (_db.select(_db.deckConfigs)..limit(1)).getSingleOrNull();
     if (existing != null) return existing.id;
     return _db.into(_db.deckConfigs).insert(const DeckConfigsCompanion(name: Value('Default')));
   }
