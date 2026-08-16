@@ -123,19 +123,11 @@ class _StudyScreenState extends State<StudyScreen> {
                           borderRadius: BorderRadius.circular(kAppRadius),
                           border: Border.all(color: colors.border),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            HtmlView(html: rendered.questionHtml),
-                            if (_showAnswer) ...[
-                              Padding(
-                                padding: const EdgeInsets.symmetric(vertical: AppSpacing.lg),
-                                child: Divider(color: colors.border),
-                              ),
-                              HtmlView(html: rendered.answerHtml),
-                            ],
-                          ],
-                        ),
+                        // Matches Anki's own reviewer: the answer template
+                        // (typically `{{FrontSide}}<hr>{{Back}}`) already
+                        // repeats the question above its own divider, so we
+                        // swap to it rather than showing the question twice.
+                        child: HtmlView(html: _showAnswer ? rendered.answerHtml : rendered.questionHtml),
                       ),
                     ),
                   ),
