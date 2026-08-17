@@ -45,7 +45,8 @@ dependencies:
   intl: ^0.20.3
   sqlite3: ^3.0.0
   flutter_html: ^3.0.0
-
+  fl_chart: ^1.2.0
+  zstandard: ^1.5.0
 dev_dependencies:
   flutter_test:
     sdk: flutter

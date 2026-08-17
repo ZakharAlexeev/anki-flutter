@@ -11,3 +11,10 @@ DateTime _rolledDate(DateTime t, int rolloverHour) {
   final shifted = t.subtract(Duration(hours: rolloverHour));
   return DateTime(shifted.year, shifted.month, shifted.day);
 }
+
+/// Inverse of [dayNumber]: the wall-clock instant a given collection day
+/// starts at (i.e. the rollover-hour boundary).
+DateTime dayStart(int dayNumber, DateTime collectionCreatedAt, {int rolloverHour = 4}) {
+  final rolledCreated = _rolledDate(collectionCreatedAt, rolloverHour);
+  return rolledCreated.add(Duration(days: dayNumber, hours: rolloverHour));
+}

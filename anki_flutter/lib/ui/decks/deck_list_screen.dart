@@ -6,6 +6,7 @@ import '../../data/repositories/deck_repository.dart';
 import '../../data/repositories/study_repository.dart';
 import '../editor/note_editor_screen.dart';
 import '../import/import_screen.dart';
+import '../stats/stats_screen.dart';
 import '../study/study_screen.dart';
 import '../theme/app_theme.dart';
 
@@ -20,6 +21,12 @@ class DeckListScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Колоды'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.query_stats_outlined, size: 20),
+            tooltip: 'Статистика',
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const StatsScreen(title: 'Все колоды'))),
+          ),
           IconButton(
             icon: const Icon(Icons.ios_share_outlined, size: 20),
             tooltip: 'Импорт .apkg',
@@ -194,9 +201,17 @@ class _DeckTile extends StatelessWidget {
                   PopupMenuButton<String>(
                     icon: Icon(Icons.more_horiz, color: colors.muted, size: 20),
                     onSelected: (value) {
-                      if (value == 'delete') _confirmDelete(context);
+                      switch (value) {
+                        case 'stats':
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => StatsScreen(deckId: deck.id, title: deck.name)),
+                          );
+                        case 'delete':
+                          _confirmDelete(context);
+                      }
                     },
                     itemBuilder: (context) => const [
+                      PopupMenuItem(value: 'stats', child: Text('Статистика')),
                       PopupMenuItem(value: 'delete', child: Text('Удалить колоду')),
                     ],
                   ),

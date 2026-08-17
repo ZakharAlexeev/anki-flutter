@@ -2,6 +2,7 @@ import 'package:anki_flutter/data/db/database.dart';
 import 'package:anki_flutter/data/repositories/deck_repository.dart';
 import 'package:anki_flutter/data/repositories/note_repository.dart';
 import 'package:anki_flutter/data/repositories/notetype_repository.dart';
+import 'package:anki_flutter/data/repositories/stats_repository.dart';
 import 'package:anki_flutter/data/repositories/study_repository.dart';
 import 'package:anki_flutter/main.dart';
 import 'package:drift/native.dart';
@@ -19,8 +20,11 @@ void main() {
     await notetypes.ensureSeeded();
     final notes = NoteRepository(db, decks, notetypes);
     final study = StudyRepository(db);
+    final stats = StatsRepository(db);
 
-    await tester.pumpWidget(AnkiFlutterApp(db: db, decks: decks, notetypes: notetypes, notes: notes, study: study));
+    await tester.pumpWidget(
+      AnkiFlutterApp(db: db, decks: decks, notetypes: notetypes, notes: notes, study: study, stats: stats),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Колоды'), findsOneWidget);

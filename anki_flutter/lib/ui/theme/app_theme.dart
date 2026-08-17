@@ -187,7 +187,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kAppRadiusSmall)),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(color: AppColors.accent),
-      extensions: [AppSemanticColors(border: border, muted: muted, surface: surface, bg: bg)],
+      extensions: [AppSemanticColors(border: border, muted: muted, surface: surface, bg: bg, text: text)],
     );
   }
 }
@@ -195,19 +195,28 @@ class AppTheme {
 /// Extra tokens not modeled by [ColorScheme] - fetched via
 /// `Theme.of(context).extension<AppSemanticColors>()!`.
 class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
-  const AppSemanticColors({required this.border, required this.muted, required this.surface, required this.bg});
+  const AppSemanticColors({
+    required this.border,
+    required this.muted,
+    required this.surface,
+    required this.bg,
+    required this.text,
+  });
 
   final Color border;
   final Color muted;
   final Color surface;
   final Color bg;
+  final Color text;
 
   @override
-  AppSemanticColors copyWith({Color? border, Color? muted, Color? surface, Color? bg}) => AppSemanticColors(
+  AppSemanticColors copyWith({Color? border, Color? muted, Color? surface, Color? bg, Color? text}) =>
+      AppSemanticColors(
         border: border ?? this.border,
         muted: muted ?? this.muted,
         surface: surface ?? this.surface,
         bg: bg ?? this.bg,
+        text: text ?? this.text,
       );
 
   @override
@@ -218,6 +227,7 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
       muted: Color.lerp(muted, other.muted, t)!,
       surface: Color.lerp(surface, other.surface, t)!,
       bg: Color.lerp(bg, other.bg, t)!,
+      text: Color.lerp(text, other.text, t)!,
     );
   }
 }

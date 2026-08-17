@@ -5,6 +5,7 @@ import 'data/db/database.dart';
 import 'data/repositories/deck_repository.dart';
 import 'data/repositories/note_repository.dart';
 import 'data/repositories/notetype_repository.dart';
+import 'data/repositories/stats_repository.dart';
 import 'data/repositories/study_repository.dart';
 import 'ui/decks/deck_list_screen.dart';
 import 'ui/theme/app_theme.dart';
@@ -19,8 +20,9 @@ Future<void> main() async {
   await notetypes.ensureSeeded();
   final notes = NoteRepository(db, decks, notetypes);
   final study = StudyRepository(db);
+  final stats = StatsRepository(db);
 
-  runApp(AnkiFlutterApp(db: db, decks: decks, notetypes: notetypes, notes: notes, study: study));
+  runApp(AnkiFlutterApp(db: db, decks: decks, notetypes: notetypes, notes: notes, study: study, stats: stats));
 }
 
 class AnkiFlutterApp extends StatelessWidget {
@@ -31,6 +33,7 @@ class AnkiFlutterApp extends StatelessWidget {
     required this.notetypes,
     required this.notes,
     required this.study,
+    required this.stats,
   });
 
   final AppDatabase db;
@@ -38,6 +41,7 @@ class AnkiFlutterApp extends StatelessWidget {
   final NotetypeRepository notetypes;
   final NoteRepository notes;
   final StudyRepository study;
+  final StatsRepository stats;
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +52,7 @@ class AnkiFlutterApp extends StatelessWidget {
         Provider<NotetypeRepository>.value(value: notetypes),
         Provider<NoteRepository>.value(value: notes),
         Provider<StudyRepository>.value(value: study),
+        Provider<StatsRepository>.value(value: stats),
       ],
       child: MaterialApp(
         title: 'Anki Flutter',
