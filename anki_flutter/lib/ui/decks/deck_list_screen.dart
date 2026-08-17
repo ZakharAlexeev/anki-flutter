@@ -5,6 +5,7 @@ import '../../data/db/database.dart';
 import '../../data/repositories/deck_repository.dart';
 import '../../data/repositories/study_repository.dart';
 import '../editor/note_editor_screen.dart';
+import '../export/export_progress_dialog.dart';
 import '../import/import_screen.dart';
 import '../stats/stats_screen.dart';
 import '../study/study_screen.dart';
@@ -207,12 +208,15 @@ class _DeckTile extends StatelessWidget {
                           Navigator.of(context).push(
                             MaterialPageRoute(builder: (_) => StatsScreen(deckId: deck.id, title: deck.name)),
                           );
+                        case 'export':
+                          exportDecksToFile(context, deckIds: [deck.id], suggestedFileName: deck.name);
                         case 'delete':
                           _confirmDelete(context);
                       }
                     },
                     itemBuilder: (context) => const [
                       PopupMenuItem(value: 'stats', child: Text('Статистика')),
+                      PopupMenuItem(value: 'export', child: Text('Экспорт .apkg')),
                       PopupMenuItem(value: 'delete', child: Text('Удалить колоду')),
                     ],
                   ),
