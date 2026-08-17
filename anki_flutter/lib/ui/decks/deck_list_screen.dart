@@ -159,17 +159,18 @@ class _DeckTile extends StatelessWidget {
       future: study.counts(deck.id),
       builder: (context, snapshot) {
         final counts = snapshot.data;
-        final hasDue = (counts?.total ?? 0) > 0;
 
         return Material(
           color: Theme.of(context).cardTheme.color,
           borderRadius: BorderRadius.circular(kAppRadius),
           child: InkWell(
             borderRadius: BorderRadius.circular(kAppRadius),
-            onTap: !hasDue
-                ? null
-                : () => Navigator.of(context)
-                    .push(MaterialPageRoute(builder: (_) => StudyScreen(deckId: deck.id, deckName: deck.name))),
+            // Always tappable, even with nothing due - StudyScreen has its
+            // own "nothing to study" state. A tile that silently ignores
+            // taps whenever the due count happens to read as zero (or just
+            // hasn't loaded yet) is indistinguishable from a broken app.
+            onTap: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => StudyScreen(deckId: deck.id, deckName: deck.name))),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.md),
               decoration: BoxDecoration(
