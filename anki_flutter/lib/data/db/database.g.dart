@@ -1004,6 +1004,54 @@ class $DecksTable extends Decks with TableInfo<$DecksTable, Deck> {
     ),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _newShownTodayMeta = const VerificationMeta(
+    'newShownToday',
+  );
+  @override
+  late final GeneratedColumn<int> newShownToday = GeneratedColumn<int>(
+    'new_shown_today',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _newShownDayMeta = const VerificationMeta(
+    'newShownDay',
+  );
+  @override
+  late final GeneratedColumn<int> newShownDay = GeneratedColumn<int>(
+    'new_shown_day',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(-1),
+  );
+  static const VerificationMeta _reviewsShownTodayMeta = const VerificationMeta(
+    'reviewsShownToday',
+  );
+  @override
+  late final GeneratedColumn<int> reviewsShownToday = GeneratedColumn<int>(
+    'reviews_shown_today',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _reviewsShownDayMeta = const VerificationMeta(
+    'reviewsShownDay',
+  );
+  @override
+  late final GeneratedColumn<int> reviewsShownDay = GeneratedColumn<int>(
+    'reviews_shown_day',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(-1),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -1012,6 +1060,10 @@ class $DecksTable extends Decks with TableInfo<$DecksTable, Deck> {
     newPerDayOverride,
     reviewsPerDayOverride,
     collapsed,
+    newShownToday,
+    newShownDay,
+    reviewsShownToday,
+    reviewsShownDay,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1071,6 +1123,42 @@ class $DecksTable extends Decks with TableInfo<$DecksTable, Deck> {
         collapsed.isAcceptableOrUnknown(data['collapsed']!, _collapsedMeta),
       );
     }
+    if (data.containsKey('new_shown_today')) {
+      context.handle(
+        _newShownTodayMeta,
+        newShownToday.isAcceptableOrUnknown(
+          data['new_shown_today']!,
+          _newShownTodayMeta,
+        ),
+      );
+    }
+    if (data.containsKey('new_shown_day')) {
+      context.handle(
+        _newShownDayMeta,
+        newShownDay.isAcceptableOrUnknown(
+          data['new_shown_day']!,
+          _newShownDayMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reviews_shown_today')) {
+      context.handle(
+        _reviewsShownTodayMeta,
+        reviewsShownToday.isAcceptableOrUnknown(
+          data['reviews_shown_today']!,
+          _reviewsShownTodayMeta,
+        ),
+      );
+    }
+    if (data.containsKey('reviews_shown_day')) {
+      context.handle(
+        _reviewsShownDayMeta,
+        reviewsShownDay.isAcceptableOrUnknown(
+          data['reviews_shown_day']!,
+          _reviewsShownDayMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1104,6 +1192,22 @@ class $DecksTable extends Decks with TableInfo<$DecksTable, Deck> {
         DriftSqlType.bool,
         data['${effectivePrefix}collapsed'],
       )!,
+      newShownToday: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}new_shown_today'],
+      )!,
+      newShownDay: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}new_shown_day'],
+      )!,
+      reviewsShownToday: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}reviews_shown_today'],
+      )!,
+      reviewsShownDay: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}reviews_shown_day'],
+      )!,
     );
   }
 
@@ -1120,6 +1224,17 @@ class Deck extends DataClass implements Insertable<Deck> {
   final int? newPerDayOverride;
   final int? reviewsPerDayOverride;
   final bool collapsed;
+
+  /// How many new cards have been *first shown* today, and which collection
+  /// day-number that count is for (so it lazily resets whenever `today`
+  /// moves on, without needing a background job). Mirrors Anki's own
+  /// per-deck `newToday`/`revToday` counters - without these, "new cards
+  /// per day" is just a query LIMIT, so leaving and re-entering a deck
+  /// resets it to the full limit again.
+  final int newShownToday;
+  final int newShownDay;
+  final int reviewsShownToday;
+  final int reviewsShownDay;
   const Deck({
     required this.id,
     required this.name,
@@ -1127,6 +1242,10 @@ class Deck extends DataClass implements Insertable<Deck> {
     this.newPerDayOverride,
     this.reviewsPerDayOverride,
     required this.collapsed,
+    required this.newShownToday,
+    required this.newShownDay,
+    required this.reviewsShownToday,
+    required this.reviewsShownDay,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1141,6 +1260,10 @@ class Deck extends DataClass implements Insertable<Deck> {
       map['reviews_per_day_override'] = Variable<int>(reviewsPerDayOverride);
     }
     map['collapsed'] = Variable<bool>(collapsed);
+    map['new_shown_today'] = Variable<int>(newShownToday);
+    map['new_shown_day'] = Variable<int>(newShownDay);
+    map['reviews_shown_today'] = Variable<int>(reviewsShownToday);
+    map['reviews_shown_day'] = Variable<int>(reviewsShownDay);
     return map;
   }
 
@@ -1156,6 +1279,10 @@ class Deck extends DataClass implements Insertable<Deck> {
           ? const Value.absent()
           : Value(reviewsPerDayOverride),
       collapsed: Value(collapsed),
+      newShownToday: Value(newShownToday),
+      newShownDay: Value(newShownDay),
+      reviewsShownToday: Value(reviewsShownToday),
+      reviewsShownDay: Value(reviewsShownDay),
     );
   }
 
@@ -1173,6 +1300,10 @@ class Deck extends DataClass implements Insertable<Deck> {
         json['reviewsPerDayOverride'],
       ),
       collapsed: serializer.fromJson<bool>(json['collapsed']),
+      newShownToday: serializer.fromJson<int>(json['newShownToday']),
+      newShownDay: serializer.fromJson<int>(json['newShownDay']),
+      reviewsShownToday: serializer.fromJson<int>(json['reviewsShownToday']),
+      reviewsShownDay: serializer.fromJson<int>(json['reviewsShownDay']),
     );
   }
   @override
@@ -1185,6 +1316,10 @@ class Deck extends DataClass implements Insertable<Deck> {
       'newPerDayOverride': serializer.toJson<int?>(newPerDayOverride),
       'reviewsPerDayOverride': serializer.toJson<int?>(reviewsPerDayOverride),
       'collapsed': serializer.toJson<bool>(collapsed),
+      'newShownToday': serializer.toJson<int>(newShownToday),
+      'newShownDay': serializer.toJson<int>(newShownDay),
+      'reviewsShownToday': serializer.toJson<int>(reviewsShownToday),
+      'reviewsShownDay': serializer.toJson<int>(reviewsShownDay),
     };
   }
 
@@ -1195,6 +1330,10 @@ class Deck extends DataClass implements Insertable<Deck> {
     Value<int?> newPerDayOverride = const Value.absent(),
     Value<int?> reviewsPerDayOverride = const Value.absent(),
     bool? collapsed,
+    int? newShownToday,
+    int? newShownDay,
+    int? reviewsShownToday,
+    int? reviewsShownDay,
   }) => Deck(
     id: id ?? this.id,
     name: name ?? this.name,
@@ -1206,6 +1345,10 @@ class Deck extends DataClass implements Insertable<Deck> {
         ? reviewsPerDayOverride.value
         : this.reviewsPerDayOverride,
     collapsed: collapsed ?? this.collapsed,
+    newShownToday: newShownToday ?? this.newShownToday,
+    newShownDay: newShownDay ?? this.newShownDay,
+    reviewsShownToday: reviewsShownToday ?? this.reviewsShownToday,
+    reviewsShownDay: reviewsShownDay ?? this.reviewsShownDay,
   );
   Deck copyWithCompanion(DecksCompanion data) {
     return Deck(
@@ -1221,6 +1364,18 @@ class Deck extends DataClass implements Insertable<Deck> {
           ? data.reviewsPerDayOverride.value
           : this.reviewsPerDayOverride,
       collapsed: data.collapsed.present ? data.collapsed.value : this.collapsed,
+      newShownToday: data.newShownToday.present
+          ? data.newShownToday.value
+          : this.newShownToday,
+      newShownDay: data.newShownDay.present
+          ? data.newShownDay.value
+          : this.newShownDay,
+      reviewsShownToday: data.reviewsShownToday.present
+          ? data.reviewsShownToday.value
+          : this.reviewsShownToday,
+      reviewsShownDay: data.reviewsShownDay.present
+          ? data.reviewsShownDay.value
+          : this.reviewsShownDay,
     );
   }
 
@@ -1232,7 +1387,11 @@ class Deck extends DataClass implements Insertable<Deck> {
           ..write('deckConfigId: $deckConfigId, ')
           ..write('newPerDayOverride: $newPerDayOverride, ')
           ..write('reviewsPerDayOverride: $reviewsPerDayOverride, ')
-          ..write('collapsed: $collapsed')
+          ..write('collapsed: $collapsed, ')
+          ..write('newShownToday: $newShownToday, ')
+          ..write('newShownDay: $newShownDay, ')
+          ..write('reviewsShownToday: $reviewsShownToday, ')
+          ..write('reviewsShownDay: $reviewsShownDay')
           ..write(')'))
         .toString();
   }
@@ -1245,6 +1404,10 @@ class Deck extends DataClass implements Insertable<Deck> {
     newPerDayOverride,
     reviewsPerDayOverride,
     collapsed,
+    newShownToday,
+    newShownDay,
+    reviewsShownToday,
+    reviewsShownDay,
   );
   @override
   bool operator ==(Object other) =>
@@ -1255,7 +1418,11 @@ class Deck extends DataClass implements Insertable<Deck> {
           other.deckConfigId == this.deckConfigId &&
           other.newPerDayOverride == this.newPerDayOverride &&
           other.reviewsPerDayOverride == this.reviewsPerDayOverride &&
-          other.collapsed == this.collapsed);
+          other.collapsed == this.collapsed &&
+          other.newShownToday == this.newShownToday &&
+          other.newShownDay == this.newShownDay &&
+          other.reviewsShownToday == this.reviewsShownToday &&
+          other.reviewsShownDay == this.reviewsShownDay);
 }
 
 class DecksCompanion extends UpdateCompanion<Deck> {
@@ -1265,6 +1432,10 @@ class DecksCompanion extends UpdateCompanion<Deck> {
   final Value<int?> newPerDayOverride;
   final Value<int?> reviewsPerDayOverride;
   final Value<bool> collapsed;
+  final Value<int> newShownToday;
+  final Value<int> newShownDay;
+  final Value<int> reviewsShownToday;
+  final Value<int> reviewsShownDay;
   const DecksCompanion({
     this.id = const Value.absent(),
     this.name = const Value.absent(),
@@ -1272,6 +1443,10 @@ class DecksCompanion extends UpdateCompanion<Deck> {
     this.newPerDayOverride = const Value.absent(),
     this.reviewsPerDayOverride = const Value.absent(),
     this.collapsed = const Value.absent(),
+    this.newShownToday = const Value.absent(),
+    this.newShownDay = const Value.absent(),
+    this.reviewsShownToday = const Value.absent(),
+    this.reviewsShownDay = const Value.absent(),
   });
   DecksCompanion.insert({
     this.id = const Value.absent(),
@@ -1280,6 +1455,10 @@ class DecksCompanion extends UpdateCompanion<Deck> {
     this.newPerDayOverride = const Value.absent(),
     this.reviewsPerDayOverride = const Value.absent(),
     this.collapsed = const Value.absent(),
+    this.newShownToday = const Value.absent(),
+    this.newShownDay = const Value.absent(),
+    this.reviewsShownToday = const Value.absent(),
+    this.reviewsShownDay = const Value.absent(),
   }) : name = Value(name),
        deckConfigId = Value(deckConfigId);
   static Insertable<Deck> custom({
@@ -1289,6 +1468,10 @@ class DecksCompanion extends UpdateCompanion<Deck> {
     Expression<int>? newPerDayOverride,
     Expression<int>? reviewsPerDayOverride,
     Expression<bool>? collapsed,
+    Expression<int>? newShownToday,
+    Expression<int>? newShownDay,
+    Expression<int>? reviewsShownToday,
+    Expression<int>? reviewsShownDay,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -1298,6 +1481,10 @@ class DecksCompanion extends UpdateCompanion<Deck> {
       if (reviewsPerDayOverride != null)
         'reviews_per_day_override': reviewsPerDayOverride,
       if (collapsed != null) 'collapsed': collapsed,
+      if (newShownToday != null) 'new_shown_today': newShownToday,
+      if (newShownDay != null) 'new_shown_day': newShownDay,
+      if (reviewsShownToday != null) 'reviews_shown_today': reviewsShownToday,
+      if (reviewsShownDay != null) 'reviews_shown_day': reviewsShownDay,
     });
   }
 
@@ -1308,6 +1495,10 @@ class DecksCompanion extends UpdateCompanion<Deck> {
     Value<int?>? newPerDayOverride,
     Value<int?>? reviewsPerDayOverride,
     Value<bool>? collapsed,
+    Value<int>? newShownToday,
+    Value<int>? newShownDay,
+    Value<int>? reviewsShownToday,
+    Value<int>? reviewsShownDay,
   }) {
     return DecksCompanion(
       id: id ?? this.id,
@@ -1317,6 +1508,10 @@ class DecksCompanion extends UpdateCompanion<Deck> {
       reviewsPerDayOverride:
           reviewsPerDayOverride ?? this.reviewsPerDayOverride,
       collapsed: collapsed ?? this.collapsed,
+      newShownToday: newShownToday ?? this.newShownToday,
+      newShownDay: newShownDay ?? this.newShownDay,
+      reviewsShownToday: reviewsShownToday ?? this.reviewsShownToday,
+      reviewsShownDay: reviewsShownDay ?? this.reviewsShownDay,
     );
   }
 
@@ -1343,6 +1538,18 @@ class DecksCompanion extends UpdateCompanion<Deck> {
     if (collapsed.present) {
       map['collapsed'] = Variable<bool>(collapsed.value);
     }
+    if (newShownToday.present) {
+      map['new_shown_today'] = Variable<int>(newShownToday.value);
+    }
+    if (newShownDay.present) {
+      map['new_shown_day'] = Variable<int>(newShownDay.value);
+    }
+    if (reviewsShownToday.present) {
+      map['reviews_shown_today'] = Variable<int>(reviewsShownToday.value);
+    }
+    if (reviewsShownDay.present) {
+      map['reviews_shown_day'] = Variable<int>(reviewsShownDay.value);
+    }
     return map;
   }
 
@@ -1354,7 +1561,11 @@ class DecksCompanion extends UpdateCompanion<Deck> {
           ..write('deckConfigId: $deckConfigId, ')
           ..write('newPerDayOverride: $newPerDayOverride, ')
           ..write('reviewsPerDayOverride: $reviewsPerDayOverride, ')
-          ..write('collapsed: $collapsed')
+          ..write('collapsed: $collapsed, ')
+          ..write('newShownToday: $newShownToday, ')
+          ..write('newShownDay: $newShownDay, ')
+          ..write('reviewsShownToday: $reviewsShownToday, ')
+          ..write('reviewsShownDay: $reviewsShownDay')
           ..write(')'))
         .toString();
   }
@@ -2419,7 +2630,7 @@ class $NotesTable extends Notes with TableInfo<$NotesTable, Note> {
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
-    clientDefault: epochMillisId,
+    clientDefault: epochMillisNow,
   );
   @override
   List<GeneratedColumn> get $columns => [
@@ -3934,7 +4145,7 @@ class $CollectionMetaTable extends CollectionMeta
     false,
     type: DriftSqlType.int,
     requiredDuringInsert: false,
-    clientDefault: epochMillisId,
+    clientDefault: epochMillisNow,
   );
   static const VerificationMeta _rolloverHourMeta = const VerificationMeta(
     'rolloverHour',
@@ -4724,6 +4935,10 @@ typedef $$DecksTableCreateCompanionBuilder =
       Value<int?> newPerDayOverride,
       Value<int?> reviewsPerDayOverride,
       Value<bool> collapsed,
+      Value<int> newShownToday,
+      Value<int> newShownDay,
+      Value<int> reviewsShownToday,
+      Value<int> reviewsShownDay,
     });
 typedef $$DecksTableUpdateCompanionBuilder =
     DecksCompanion Function({
@@ -4733,6 +4948,10 @@ typedef $$DecksTableUpdateCompanionBuilder =
       Value<int?> newPerDayOverride,
       Value<int?> reviewsPerDayOverride,
       Value<bool> collapsed,
+      Value<int> newShownToday,
+      Value<int> newShownDay,
+      Value<int> reviewsShownToday,
+      Value<int> reviewsShownDay,
     });
 
 final class $$DecksTableReferences
@@ -4806,6 +5025,26 @@ class $$DecksTableFilterComposer extends Composer<_$AppDatabase, $DecksTable> {
 
   ColumnFilters<bool> get collapsed => $composableBuilder(
     column: $table.collapsed,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get newShownToday => $composableBuilder(
+    column: $table.newShownToday,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get newShownDay => $composableBuilder(
+    column: $table.newShownDay,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get reviewsShownToday => $composableBuilder(
+    column: $table.reviewsShownToday,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get reviewsShownDay => $composableBuilder(
+    column: $table.reviewsShownDay,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4892,6 +5131,26 @@ class $$DecksTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get newShownToday => $composableBuilder(
+    column: $table.newShownToday,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get newShownDay => $composableBuilder(
+    column: $table.newShownDay,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get reviewsShownToday => $composableBuilder(
+    column: $table.reviewsShownToday,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get reviewsShownDay => $composableBuilder(
+    column: $table.reviewsShownDay,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$DeckConfigsTableOrderingComposer get deckConfigId {
     final $$DeckConfigsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -4943,6 +5202,26 @@ class $$DecksTableAnnotationComposer
 
   GeneratedColumn<bool> get collapsed =>
       $composableBuilder(column: $table.collapsed, builder: (column) => column);
+
+  GeneratedColumn<int> get newShownToday => $composableBuilder(
+    column: $table.newShownToday,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get newShownDay => $composableBuilder(
+    column: $table.newShownDay,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get reviewsShownToday => $composableBuilder(
+    column: $table.reviewsShownToday,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get reviewsShownDay => $composableBuilder(
+    column: $table.reviewsShownDay,
+    builder: (column) => column,
+  );
 
   $$DeckConfigsTableAnnotationComposer get deckConfigId {
     final $$DeckConfigsTableAnnotationComposer composer = $composerBuilder(
@@ -5027,6 +5306,10 @@ class $$DecksTableTableManager
                 Value<int?> newPerDayOverride = const Value.absent(),
                 Value<int?> reviewsPerDayOverride = const Value.absent(),
                 Value<bool> collapsed = const Value.absent(),
+                Value<int> newShownToday = const Value.absent(),
+                Value<int> newShownDay = const Value.absent(),
+                Value<int> reviewsShownToday = const Value.absent(),
+                Value<int> reviewsShownDay = const Value.absent(),
               }) => DecksCompanion(
                 id: id,
                 name: name,
@@ -5034,6 +5317,10 @@ class $$DecksTableTableManager
                 newPerDayOverride: newPerDayOverride,
                 reviewsPerDayOverride: reviewsPerDayOverride,
                 collapsed: collapsed,
+                newShownToday: newShownToday,
+                newShownDay: newShownDay,
+                reviewsShownToday: reviewsShownToday,
+                reviewsShownDay: reviewsShownDay,
               ),
           createCompanionCallback:
               ({
@@ -5043,6 +5330,10 @@ class $$DecksTableTableManager
                 Value<int?> newPerDayOverride = const Value.absent(),
                 Value<int?> reviewsPerDayOverride = const Value.absent(),
                 Value<bool> collapsed = const Value.absent(),
+                Value<int> newShownToday = const Value.absent(),
+                Value<int> newShownDay = const Value.absent(),
+                Value<int> reviewsShownToday = const Value.absent(),
+                Value<int> reviewsShownDay = const Value.absent(),
               }) => DecksCompanion.insert(
                 id: id,
                 name: name,
@@ -5050,6 +5341,10 @@ class $$DecksTableTableManager
                 newPerDayOverride: newPerDayOverride,
                 reviewsPerDayOverride: reviewsPerDayOverride,
                 collapsed: collapsed,
+                newShownToday: newShownToday,
+                newShownDay: newShownDay,
+                reviewsShownToday: reviewsShownToday,
+                reviewsShownDay: reviewsShownDay,
               ),
           withReferenceMapper: (p0) => p0
               .map(

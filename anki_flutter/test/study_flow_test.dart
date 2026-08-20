@@ -80,21 +80,21 @@ void main() {
     await tester.tap(find.text('Хорошо'));
     await tester.pumpAndSettle();
 
+    // The card is due again in 10 minutes, which is within dueQueue's
+    // 20-minute learn-ahead window (matching Anki's own default) - so it
+    // resurfaces in the same sitting rather than vanishing until the next
+    // app open.
     due = await study.dueQueue(deckId);
-    expect(due, isEmpty, reason: 'the 10-minute-away learning step should not be due yet');
+    expect(due, hasLength(1), reason: 'a 10-minute-away learning step is within the learn-ahead window');
+    expect(due.single.queue, CardQueue.learning);
 
     final afterFirstGood = (await db.select(db.cards).get()).single;
     expect(afterFirstGood.queue, CardQueue.learning);
     expect(afterFirstGood.stepIndex, 1);
     expect(afterFirstGood.reps, 1);
 
-    // Jump forward in wall-clock time (as the study screen would on the
-    // next app open) to bring the card due, then answer Good again to
-    // graduate it into the review queue.
-    final future = DateTime.now().add(const Duration(minutes: 15));
-    due = await study.dueQueue(deckId, now: future);
-    expect(due, hasLength(1));
-    await study.answerCard(cardId: due.single.id, rating: Rating.good, now: future);
+    // Answer Good again to graduate it into the review queue.
+    await study.answerCard(cardId: due.single.id, rating: Rating.good);
 
     final graduated = (await db.select(db.cards).get()).single;
     expect(graduated.queue, CardQueue.review);

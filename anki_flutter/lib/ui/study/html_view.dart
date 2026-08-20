@@ -11,18 +11,24 @@ import '../theme/app_theme.dart';
 /// a compact card - the overrides below flatten it back down to plain
 /// inline text, matching how these templates actually look in Anki itself.
 class HtmlView extends StatelessWidget {
-  const HtmlView({super.key, required this.html});
+  const HtmlView({super.key, required this.html, this.css = ''});
 
   final String html;
+
+  /// The note type's own CSS (`Notetypes.css`) - flutter_html natively
+  /// parses a `<style>` tag inside the document and cascades its rules
+  /// down the tree, so this is real CSS support, not a hand-rolled one.
+  final String css;
 
   @override
   Widget build(BuildContext context) {
     final body = html.trim().isEmpty ? '<i>(пусто)</i>' : html;
+    final withCss = css.trim().isEmpty ? body : '<style>$css</style>$body';
     final textColor = Theme.of(context).textTheme.bodyLarge?.color;
     final borderColor = context.appColors.border;
 
     return Html(
-      data: body,
+      data: withCss,
       style: {
         'body': Style(
           fontSize: FontSize(19),

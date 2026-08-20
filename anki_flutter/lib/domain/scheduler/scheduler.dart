@@ -197,7 +197,11 @@ class Scheduler {
       final lapses = card.lapses + 1;
       final newEase = max(config.minEase, card.ease - 200);
       final becameLeech = config.leechThreshold > 0 && lapses % config.leechThreshold == 0;
-      final lapseIvl = max(1, (prevIvl * config.newIntervalMultiplier).round());
+      // Anki doesn't fuzz the post-lapse interval (fuzz is a normal-review
+      // thing), but it does still clamp it to the deck's configured max -
+      // otherwise a lapse on an already-very-long interval could produce a
+      // relearning-graduate interval past the deck's own ceiling.
+      final lapseIvl = min(config.maximumIntervalDays, max(1, (prevIvl * config.newIntervalMultiplier).round()));
 
       CardSchedState next;
       if (config.relearningStepsMin.isNotEmpty) {

@@ -24,7 +24,43 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+        onCreate: (m) async {
+          await m.createAll();
+        },
+        onUpgrade: (m, from, to) async {
+          if (from < 2) {
+            await m.addColumn(decks, decks.newShownToday);
+            await m.addColumn(decks, decks.newShownDay);
+            await m.addColumn(decks, decks.reviewsShownToday);
+            await m.addColumn(decks, decks.reviewsShownDay);
+
+            // v1 accidentally stored createdAt in *microseconds* (reusing
+            // the ID generator) instead of milliseconds. A real millisecond
+            // "now" is ~13 digits; a microsecond value misread as millis is
+            // ~16, comfortably past this threshold (year ~5138 in millis).
+            const microsecondThreshold = 100000000000000; // 1e14
+            await customStatement(
+              'UPDATE collection_meta SET created_at = created_at / 1000 WHERE created_at > $microsecondThreshold',
+            );
+            await customStatement(
+              'UPDATE notes SET created_at = created_at / 1000 WHERE created_at > $microsecondThreshold',
+            );
+          }
+        },
+        beforeOpen: (details) async {
+          // SQLite defaults foreign-key enforcement to OFF for backwards
+          // compatibility - without this, deleting a deck/notetype out from
+          // under a card would silently leave a dangling reference instead
+          // of erroring, masking bugs in the cleanup code that's supposed
+          // to delete dependents first (see deck_repository.dart,
+          // notetype_repository.dart, note_repository.dart).
+          await customStatement('PRAGMA foreign_keys = ON');
+        },
+      );
 
   /// Ensures a single [CollectionMeta] row and a default [DeckConfigs] +
   /// "Default" deck exist, mirroring a fresh Anki profile. Safe to call on

@@ -18,6 +18,13 @@ class DueQueueCounts {
   int get total => newCount + learningCount + reviewCount;
 }
 
+/// How far into the future to pull in not-yet-due learning/relearning cards,
+/// matching Anki's own "learn ahead limit" (default 20 minutes) - without
+/// this, a card answered "Again" (due again in 1-10 minutes) never resurfaces
+/// in the *current* session: the queue is only ever filtered by `due <= now`,
+/// and by the time it's actually due the user has already moved on.
+const _learnAheadWindow = Duration(minutes: 20);
+
 /// Bridges the pure [Scheduler] to persisted state: builds each deck's due
 /// queue, and applies + records answers inside a transaction.
 class StudyRepository {
@@ -38,32 +45,51 @@ class StudyRepository {
 
   /// Cards ready to study right now, ordered learning -> review -> new
   /// (a simplified but faithful approximation of Anki's default mix).
+  ///
+  /// New/review counts are capped by how many are *actually still allowed
+  /// today* - the deck's per-day limit (or its override) minus how many
+  /// have already been shown today per [Deck.newShownToday]/
+  /// [Deck.reviewsShownToday] - not just a flat query LIMIT, so leaving and
+  /// re-entering a deck doesn't hand out a fresh limit each time.
   Future<List<CardEntry>> dueQueue(int deckId, {DateTime? now}) async {
     final n = now ?? DateTime.now();
     final t = await today(n);
-    final nowSec = n.millisecondsSinceEpoch ~/ 1000;
-    final cfg = await _configRowForDeck(deckId);
+    final lookAheadSec = n.add(_learnAheadWindow).millisecondsSinceEpoch ~/ 1000;
+    final deck = await (_db.select(_db.decks)..where((d) => d.id.equals(deckId))).getSingle();
+    final cfg = await (_db.select(_db.deckConfigs)..where((c) => c.id.equals(deck.deckConfigId))).getSingle();
+
+    final newLimit = deck.newPerDayOverride ?? cfg.newPerDay;
+    final newShown = deck.newShownDay == t ? deck.newShownToday : 0;
+    final newRemaining = max(0, newLimit - newShown);
+
+    final reviewLimit = deck.reviewsPerDayOverride ?? cfg.reviewsPerDay;
+    final reviewShown = deck.reviewsShownDay == t ? deck.reviewsShownToday : 0;
+    final reviewRemaining = max(0, reviewLimit - reviewShown);
 
     final learning = await (_db.select(_db.cards)
           ..where((c) =>
               c.deckId.equals(deckId) &
               (c.queue.equalsValue(CardQueue.learning) | c.queue.equalsValue(CardQueue.relearning)) &
-              c.due.isSmallerOrEqualValue(nowSec))
+              c.due.isSmallerOrEqualValue(lookAheadSec))
           ..orderBy([(c) => OrderingTerm.asc(c.due)]))
         .get();
 
-    final review = await (_db.select(_db.cards)
-          ..where((c) =>
-              c.deckId.equals(deckId) & c.queue.equalsValue(CardQueue.review) & c.due.isSmallerOrEqualValue(t))
-          ..orderBy([(c) => OrderingTerm.asc(c.due)])
-          ..limit(cfg.reviewsPerDay))
-        .get();
+    final review = reviewRemaining == 0
+        ? <CardEntry>[]
+        : await (_db.select(_db.cards)
+              ..where((c) =>
+                  c.deckId.equals(deckId) & c.queue.equalsValue(CardQueue.review) & c.due.isSmallerOrEqualValue(t))
+              ..orderBy([(c) => OrderingTerm.asc(c.due)])
+              ..limit(reviewRemaining))
+            .get();
 
-    final newCards = await (_db.select(_db.cards)
-          ..where((c) => c.deckId.equals(deckId) & c.queue.equalsValue(CardQueue.newCard))
-          ..orderBy([(c) => OrderingTerm.asc(c.id)])
-          ..limit(cfg.newPerDay))
-        .get();
+    final newCards = newRemaining == 0
+        ? <CardEntry>[]
+        : await (_db.select(_db.cards)
+              ..where((c) => c.deckId.equals(deckId) & c.queue.equalsValue(CardQueue.newCard))
+              ..orderBy([(c) => OrderingTerm.asc(c.id)])
+              ..limit(newRemaining))
+            .get();
 
     return [...learning, ...review, ...newCards];
   }
@@ -90,12 +116,16 @@ class StudyRepository {
   }
 
   /// Applies [rating] to [cardId], persists the new scheduling state and
-  /// appends a revlog entry, all in one transaction.
+  /// appends a revlog entry (with [timeTakenMs], if the caller measured how
+  /// long the card was shown for), all in one transaction. Also updates the
+  /// owning deck's daily new/review counters so [dueQueue]'s per-day limits
+  /// actually stick across app restarts and re-entering the deck.
   Future<AnswerOutcome> answerCard({
     required int cardId,
     required Rating rating,
     DateTime? now,
     Random? random,
+    int timeTakenMs = 0,
   }) async {
     final n = now ?? DateTime.now();
     final entry = await (_db.select(_db.cards)..where((c) => c.id.equals(cardId))).getSingle();
@@ -131,7 +161,25 @@ class StudyRepository {
             ivlBefore: entry.ivl,
             ivlAfter: outcome.state.ivl,
             easeAfter: outcome.state.ease,
+            timeTakenMs: Value(timeTakenMs),
           ));
+
+      // Count this presentation against the deck's daily budget: a new
+      // card's very first answer counts against newPerDay; a review card's
+      // (mature or lapsed-and-since-relearned) answer counts against
+      // reviewsPerDay. Mid-(re)learning-step answers count against neither,
+      // matching Anki.
+      if (entry.queue == CardQueue.newCard) {
+        final deck = await (_db.select(_db.decks)..where((d) => d.id.equals(entry.deckId))).getSingle();
+        final shown = deck.newShownDay == t ? deck.newShownToday : 0;
+        await (_db.update(_db.decks)..where((d) => d.id.equals(entry.deckId)))
+            .write(DecksCompanion(newShownToday: Value(shown + 1), newShownDay: Value(t)));
+      } else if (entry.queue == CardQueue.review) {
+        final deck = await (_db.select(_db.decks)..where((d) => d.id.equals(entry.deckId))).getSingle();
+        final shown = deck.reviewsShownDay == t ? deck.reviewsShownToday : 0;
+        await (_db.update(_db.decks)..where((d) => d.id.equals(entry.deckId)))
+            .write(DecksCompanion(reviewsShownToday: Value(shown + 1), reviewsShownDay: Value(t)));
+      }
     });
 
     return outcome;

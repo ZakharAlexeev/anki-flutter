@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/db/database.dart';
+import '../../data/media/media_resolver.dart';
 import '../../data/repositories/note_repository.dart';
 import '../../data/repositories/notetype_repository.dart';
 import '../../data/repositories/study_repository.dart';
@@ -23,8 +24,14 @@ class _StudyScreenState extends State<StudyScreen> {
   List<CardEntry> _queue = [];
   bool _loading = true;
   bool _showAnswer = false;
+  bool _answering = false;
+  String? _error;
   RenderedCard? _rendered;
+  String? _resolvedQuestionHtml;
+  String? _resolvedAnswerHtml;
   Map<Rating, CardSchedState>? _previews;
+  DateTime? _cardShownAt;
+  final _media = MediaResolver();
 
   StudyRepository get _study => context.read<StudyRepository>();
   NoteRepository get _notes => context.read<NoteRepository>();
@@ -37,14 +44,26 @@ class _StudyScreenState extends State<StudyScreen> {
   }
 
   Future<void> _loadQueue() async {
-    setState(() => _loading = true);
-    final queue = await _study.dueQueue(widget.deckId);
     setState(() {
-      _queue = queue;
-      _loading = false;
-      _showAnswer = false;
+      _loading = true;
+      _error = null;
     });
-    if (queue.isNotEmpty) await _renderCurrent();
+    try {
+      final queue = await _study.dueQueue(widget.deckId);
+      if (!mounted) return;
+      setState(() {
+        _queue = queue;
+        _loading = false;
+        _showAnswer = false;
+      });
+      if (queue.isNotEmpty) await _renderCurrent();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'Не удалось загрузить карточки: $e';
+      });
+    }
   }
 
   CardEntry get _current => _queue.first;
@@ -57,25 +76,59 @@ class _StudyScreenState extends State<StudyScreen> {
     final templates = await _notetypes.templatesFor(noteRow.notetypeId);
     final template = templates.firstWhere((t) => t.ord == card.templateOrd, orElse: () => templates.first);
     final fieldDefs = await _notetypes.fieldsFor(noteRow.notetypeId);
+    final notetype = await _notetypes.notetype(noteRow.notetypeId);
 
-    final rendered = renderCard(template: template, fieldDefs: fieldDefs, fieldValues: fields);
+    final rendered = renderCard(
+      template: template,
+      fieldDefs: fieldDefs,
+      fieldValues: fields,
+      css: notetype?.css ?? '',
+      tags: noteRow.tags,
+      deckName: widget.deckName,
+      notetypeName: notetype?.name ?? '',
+    );
     final previews = await _study.previewOutcomes(card.id);
+    final resolvedQuestion = await _media.resolve(rendered.questionHtml);
+    final resolvedAnswer = await _media.resolve(rendered.answerHtml);
     if (!mounted) return;
     setState(() {
       _rendered = rendered;
+      _resolvedQuestionHtml = resolvedQuestion;
+      _resolvedAnswerHtml = resolvedAnswer;
       _previews = previews;
+      _cardShownAt = DateTime.now();
     });
   }
 
   Future<void> _answer(Rating rating) async {
-    await _study.answerCard(cardId: _current.id, rating: rating);
-    setState(() {
-      _queue = _queue.skip(1).toList();
-      _showAnswer = false;
-      _rendered = null;
-      _previews = null;
-    });
-    if (_queue.isNotEmpty) await _renderCurrent();
+    if (_answering) return; // guard against a double tap re-answering the same card twice
+    setState(() => _answering = true);
+
+    final elapsedMs = _cardShownAt == null ? 0 : DateTime.now().difference(_cardShownAt!).inMilliseconds;
+    try {
+      final outcome = await _study.answerCard(cardId: _current.id, rating: rating, timeTakenMs: elapsedMs);
+      final freshQueue = await _study.dueQueue(widget.deckId);
+      if (!mounted) return;
+      setState(() {
+        _queue = freshQueue;
+        _showAnswer = false;
+        _rendered = null;
+        _resolvedQuestionHtml = null;
+        _resolvedAnswerHtml = null;
+        _previews = null;
+        _answering = false;
+      });
+      if (outcome.becameLeech && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Карточка стала leech и была отложена (suspended)')),
+        );
+      }
+      if (_queue.isNotEmpty) await _renderCurrent();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _answering = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
+    }
   }
 
   @override
@@ -95,19 +148,23 @@ class _StudyScreenState extends State<StudyScreen> {
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
-          : _queue.isEmpty
-              ? const _AllDoneState()
-              : _buildStudyBody(),
+          : _error != null
+              ? _ErrorState(message: _error!, onRetry: _loadQueue)
+              : _queue.isEmpty
+                  ? const _AllDoneState()
+                  : _buildStudyBody(),
     );
   }
 
   Widget _buildStudyBody() {
     final rendered = _rendered;
+    final questionHtml = _resolvedQuestionHtml;
+    final answerHtml = _resolvedAnswerHtml;
     final colors = context.appColors;
     return Column(
       children: [
         Expanded(
-          child: rendered == null
+          child: rendered == null || questionHtml == null || answerHtml == null
               ? const Center(child: CircularProgressIndicator())
               : Align(
                   alignment: Alignment.topCenter,
@@ -127,7 +184,10 @@ class _StudyScreenState extends State<StudyScreen> {
                         // (typically `{{FrontSide}}<hr>{{Back}}`) already
                         // repeats the question above its own divider, so we
                         // swap to it rather than showing the question twice.
-                        child: HtmlView(html: _showAnswer ? rendered.answerHtml : rendered.questionHtml),
+                        child: HtmlView(
+                          html: _showAnswer ? answerHtml : questionHtml,
+                          css: rendered.css,
+                        ),
                       ),
                     ),
                   ),
@@ -183,7 +243,7 @@ class _StudyScreenState extends State<StudyScreen> {
       borderRadius: BorderRadius.circular(kAppRadiusSmall),
       child: InkWell(
         borderRadius: BorderRadius.circular(kAppRadiusSmall),
-        onTap: () => _answer(rating),
+        onTap: _answering ? null : () => _answer(rating),
         child: Container(
           height: 60,
           alignment: Alignment.center,
@@ -210,8 +270,11 @@ class _StudyScreenState extends State<StudyScreen> {
     if (state.queue == CardQueue.learning || state.queue == CardQueue.relearning) {
       final now = DateTime.now();
       final dueAt = DateTime.fromMillisecondsSinceEpoch(state.due * 1000);
-      final minutes = dueAt.difference(now).inMinutes.clamp(1, 999);
-      return minutes < 60 ? '<$minutes мин' : '${(minutes / 60).round()} ч';
+      final minutes = dueAt.difference(now).inMinutes.clamp(1, 1 << 30);
+      if (minutes < 60) return '$minutes мин';
+      final hours = minutes / 60;
+      if (hours < 24) return '${hours.round()} ч';
+      return '${(hours / 24).round()} д';
     }
     final days = state.ivl;
     if (days < 30) return '$days д';
@@ -236,6 +299,33 @@ class _AllDoneState extends StatelessWidget {
           const SizedBox(height: AppSpacing.xs),
           Text('Карточек для повторения больше нет', style: Theme.of(context).textTheme.bodySmall),
         ],
+      ),
+    );
+  }
+}
+
+class _ErrorState extends StatelessWidget {
+  const _ErrorState({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.error_outline, size: 40, color: colors.muted),
+            const SizedBox(height: AppSpacing.md),
+            Text(message, style: Theme.of(context).textTheme.bodyMedium, textAlign: TextAlign.center),
+            const SizedBox(height: AppSpacing.lg),
+            OutlinedButton(onPressed: onRetry, child: const Text('Повторить')),
+          ],
+        ),
       ),
     );
   }

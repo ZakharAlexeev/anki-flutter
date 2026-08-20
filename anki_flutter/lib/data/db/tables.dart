@@ -7,15 +7,25 @@ import '../../domain/scheduler/models.dart' show CardQueue;
 /// inserted in the same millisecond - e.g. creating a note from a two-sided
 /// note type inserts two cards back to back - which trips SQLite's UNIQUE
 /// constraint on the primary key. Bumping to the previous value + 1 whenever
-/// the clock hasn't advanced keeps every locally-generated ID unique while
-/// staying far below the epoch-millis IDs an imported .apkg carries over, so
-/// the two ID spaces never collide either.
+/// the clock hasn't advanced keeps every locally-generated ID unique. Being
+/// microsecond-precision also keeps these well clear of the epoch-*millis*
+/// IDs an imported .apkg carries over (those are ~1000x smaller), so the two
+/// ID spaces never collide either.
+///
+/// This is an ID generator, not a clock - never use it for a column that's
+/// actually supposed to hold a wall-clock timestamp (see [epochMillisNow]).
 int _lastIssuedId = 0;
 int epochMillisId() {
   final now = DateTime.now().microsecondsSinceEpoch;
   _lastIssuedId = now > _lastIssuedId ? now : _lastIssuedId + 1;
   return _lastIssuedId;
 }
+
+/// A real `millisecondsSinceEpoch` wall-clock timestamp, for columns like
+/// `createdAt` that other code reads back with `DateTime.fromMillisecondsSinceEpoch`
+/// - as opposed to [epochMillisId], which is microsecond-precision and meant
+/// only for primary keys.
+int epochMillisNow() => DateTime.now().millisecondsSinceEpoch;
 
 class DeckConfigs extends Table {
   IntColumn get id => integer().clientDefault(epochMillisId)();
@@ -46,6 +56,17 @@ class Decks extends Table {
   IntColumn get newPerDayOverride => integer().nullable()();
   IntColumn get reviewsPerDayOverride => integer().nullable()();
   BoolColumn get collapsed => boolean().withDefault(const Constant(false))();
+
+  /// How many new cards have been *first shown* today, and which collection
+  /// day-number that count is for (so it lazily resets whenever `today`
+  /// moves on, without needing a background job). Mirrors Anki's own
+  /// per-deck `newToday`/`revToday` counters - without these, "new cards
+  /// per day" is just a query LIMIT, so leaving and re-entering a deck
+  /// resets it to the full limit again.
+  IntColumn get newShownToday => integer().withDefault(const Constant(0))();
+  IntColumn get newShownDay => integer().withDefault(const Constant(-1))();
+  IntColumn get reviewsShownToday => integer().withDefault(const Constant(0))();
+  IntColumn get reviewsShownDay => integer().withDefault(const Constant(-1))();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -84,7 +105,7 @@ class Notes extends Table {
   TextColumn get fieldsJson => text()();
   /// Space-separated, same convention Anki uses.
   TextColumn get tags => text().withDefault(const Constant(''))();
-  IntColumn get createdAt => integer().clientDefault(epochMillisId)();
+  IntColumn get createdAt => integer().clientDefault(epochMillisNow)();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -125,7 +146,7 @@ class RevLog extends Table {
 
 class CollectionMeta extends Table {
   IntColumn get id => integer().withDefault(const Constant(1))();
-  IntColumn get createdAt => integer().clientDefault(epochMillisId)();
+  IntColumn get createdAt => integer().clientDefault(epochMillisNow)();
   IntColumn get rolloverHour => integer().withDefault(const Constant(4))();
 
   @override

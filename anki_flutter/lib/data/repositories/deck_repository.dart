@@ -25,21 +25,21 @@ class DeckRepository {
   Future<void> renameDeck(int id, String newName) =>
       (_db.update(_db.decks)..where((d) => d.id.equals(id))).write(DecksCompanion(name: Value(newName)));
 
-  /// Deletes a deck along with its cards; any note left with no remaining
-  /// cards elsewhere is deleted too, matching Anki's own deck-delete
-  /// behaviour.
+  /// Deletes a deck along with its cards (and their review history); any
+  /// note left with no remaining cards elsewhere is deleted too, matching
+  /// Anki's own deck-delete behaviour.
   Future<void> deleteDeck(int id) async {
     await _db.transaction(() async {
-      final orphanCandidates = await (_db.selectOnly(_db.cards)
-            ..addColumns([_db.cards.noteId])
-            ..where(_db.cards.deckId.equals(id)))
-          .map((row) => row.read(_db.cards.noteId)!)
-          .get();
+      final doomedCards = await (_db.select(_db.cards)..where((c) => c.deckId.equals(id))).get();
+      final orphanCandidates = doomedCards.map((c) => c.noteId).toSet();
 
+      for (final card in doomedCards) {
+        await (_db.delete(_db.revLog)..where((r) => r.cardId.equals(card.id))).go();
+      }
       await (_db.delete(_db.cards)..where((c) => c.deckId.equals(id))).go();
       await (_db.delete(_db.decks)..where((d) => d.id.equals(id))).go();
 
-      for (final noteId in orphanCandidates.toSet()) {
+      for (final noteId in orphanCandidates) {
         final remaining = await (_db.select(_db.cards)..where((c) => c.noteId.equals(noteId))).get();
         if (remaining.isEmpty) {
           await (_db.delete(_db.notes)..where((n) => n.id.equals(noteId))).go();

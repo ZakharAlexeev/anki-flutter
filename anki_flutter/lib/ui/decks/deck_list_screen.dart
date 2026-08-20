@@ -4,12 +4,14 @@ import 'package:provider/provider.dart';
 import '../../data/db/database.dart';
 import '../../data/repositories/deck_repository.dart';
 import '../../data/repositories/study_repository.dart';
+import '../browser/card_browser_screen.dart';
 import '../editor/note_editor_screen.dart';
 import '../export/export_progress_dialog.dart';
 import '../import/import_screen.dart';
 import '../stats/stats_screen.dart';
 import '../study/study_screen.dart';
 import '../theme/app_theme.dart';
+import 'deck_settings_screen.dart';
 
 class DeckListScreen extends StatelessWidget {
   const DeckListScreen({super.key});
@@ -104,7 +106,14 @@ class DeckListScreen extends StatelessWidget {
       ),
     );
     if (name != null && name.isNotEmpty && context.mounted) {
-      await context.read<DeckRepository>().createDeck(name);
+      try {
+        await context.read<DeckRepository>().createDeck(name);
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Не удалось создать колоду "$name": уже существует')),
+        );
+      }
     }
   }
 }
@@ -145,19 +154,44 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _DeckTile extends StatelessWidget {
+class _DeckTile extends StatefulWidget {
   const _DeckTile({required this.deck});
 
   final Deck deck;
 
   @override
+  State<_DeckTile> createState() => _DeckTileState();
+}
+
+class _DeckTileState extends State<_DeckTile> {
+  late Future<DueQueueCounts> _counts;
+
+  @override
+  void initState() {
+    super.initState();
+    _counts = context.read<StudyRepository>().counts(widget.deck.id);
+  }
+
+  @override
+  void didUpdateWidget(_DeckTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // watchDecks() re-emits the whole deck list on *any* deck's row
+    // changing (e.g. another deck's daily counters after answering a
+    // card), which rebuilds every tile - only the tile whose own row
+    // actually changed needs to re-run its (3-query) counts() lookup.
+    if (oldWidget.deck != widget.deck) {
+      _counts = context.read<StudyRepository>().counts(widget.deck.id);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final study = context.read<StudyRepository>();
+    final deck = widget.deck;
     final colors = context.appColors;
     final textTheme = Theme.of(context).textTheme;
 
     return FutureBuilder<DueQueueCounts>(
-      future: study.counts(deck.id),
+      future: _counts,
       builder: (context, snapshot) {
         final counts = snapshot.data;
 
@@ -208,15 +242,28 @@ class _DeckTile extends StatelessWidget {
                           Navigator.of(context).push(
                             MaterialPageRoute(builder: (_) => StatsScreen(deckId: deck.id, title: deck.name)),
                           );
+                        case 'browse':
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => CardBrowserScreen(deckId: deck.id, deckName: deck.name)),
+                          );
                         case 'export':
                           exportDecksToFile(context, deckIds: [deck.id], suggestedFileName: deck.name);
+                        case 'settings':
+                          Navigator.of(context).push(
+                            MaterialPageRoute(builder: (_) => DeckSettingsScreen(deckId: deck.id, deckName: deck.name)),
+                          );
+                        case 'rename':
+                          _rename(context);
                         case 'delete':
                           _confirmDelete(context);
                       }
                     },
                     itemBuilder: (context) => const [
+                      PopupMenuItem(value: 'browse', child: Text('Карточки')),
                       PopupMenuItem(value: 'stats', child: Text('Статистика')),
                       PopupMenuItem(value: 'export', child: Text('Экспорт .apkg')),
+                      PopupMenuItem(value: 'settings', child: Text('Настройки колоды')),
+                      PopupMenuItem(value: 'rename', child: Text('Переименовать')),
                       PopupMenuItem(value: 'delete', child: Text('Удалить колоду')),
                     ],
                   ),
@@ -229,11 +276,40 @@ class _DeckTile extends StatelessWidget {
     );
   }
 
+  Future<void> _rename(BuildContext context) async {
+    final controller = TextEditingController(text: widget.deck.name);
+    final name = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Переименовать колоду'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Название колоды'),
+          onSubmitted: (v) => Navigator.pop(context, v.trim()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
+          FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Сохранить')),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty || name == widget.deck.name || !context.mounted) return;
+    try {
+      await context.read<DeckRepository>().renameDeck(widget.deck.id, name);
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Не удалось переименовать: колода "$name" уже существует')),
+      );
+    }
+  }
+
   Future<void> _confirmDelete(BuildContext context) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Удалить колоду "${deck.name}"?'),
+        title: Text('Удалить колоду "${widget.deck.name}"?'),
         content: const Text('Все карточки этой колоды будут удалены безвозвратно.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
@@ -242,7 +318,7 @@ class _DeckTile extends StatelessWidget {
       ),
     );
     if (confirmed == true && context.mounted) {
-      await context.read<DeckRepository>().deleteDeck(deck.id);
+      await context.read<DeckRepository>().deleteDeck(widget.deck.id);
     }
   }
 }

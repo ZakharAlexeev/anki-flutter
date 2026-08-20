@@ -17,6 +17,9 @@ class NotetypeRepository {
 
   Stream<List<Notetype>> watchNotetypes() => _db.select(_db.notetypes).watch();
 
+  Future<Notetype?> notetype(int notetypeId) =>
+      (_db.select(_db.notetypes)..where((n) => n.id.equals(notetypeId))).getSingleOrNull();
+
   Future<List<NotetypeField>> fieldsFor(int notetypeId) =>
       (_db.select(_db.notetypeFields)
             ..where((f) => f.notetypeId.equals(notetypeId))
@@ -58,9 +61,10 @@ class NotetypeRepository {
     });
   }
 
-  /// Deletes a note type along with every note/card built from it - matches
-  /// Anki's own confirmation-then-cascade behaviour (the UI is expected to
-  /// confirm with the user before calling this).
+  /// Deletes a note type along with every note/card (and their review
+  /// history) built from it - matches Anki's own confirmation-then-cascade
+  /// behaviour (the UI is expected to confirm with the user before calling
+  /// this).
   Future<void> deleteNotetype(int notetypeId) async {
     await _db.transaction(() async {
       final noteIds = await (_db.selectOnly(_db.notes)
@@ -69,6 +73,14 @@ class NotetypeRepository {
           .map((row) => row.read(_db.notes.id)!)
           .get();
       for (final noteId in noteIds) {
+        final cardIds = await (_db.selectOnly(_db.cards)
+              ..addColumns([_db.cards.id])
+              ..where(_db.cards.noteId.equals(noteId)))
+            .map((row) => row.read(_db.cards.id)!)
+            .get();
+        for (final cardId in cardIds) {
+          await (_db.delete(_db.revLog)..where((r) => r.cardId.equals(cardId))).go();
+        }
         await (_db.delete(_db.cards)..where((c) => c.noteId.equals(noteId))).go();
       }
       await (_db.delete(_db.notes)..where((n) => n.notetypeId.equals(notetypeId))).go();

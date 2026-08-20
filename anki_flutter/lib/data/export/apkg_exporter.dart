@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -82,8 +84,10 @@ class ApkgExporter {
         fieldsByNotetype: fieldsByNotetype,
         templatesByNotetype: templatesByNotetype,
       );
-      _writeNotes(db, notes);
-      _writeCards(db, cards);
+      final sortFieldIndexByNotetype = {for (final nt in notetypes) nt.id: nt.sortFieldIndex};
+      _writeNotes(db, notes, sortFieldIndexByNotetype);
+      final configByDeck = {for (final d in decks) d.id: deckConfigs.firstWhere((c) => c.id == d.deckConfigId)};
+      _writeCards(db, cards, configByDeck);
       _writeRevlog(db, revlog);
     } finally {
       db.close();
@@ -302,7 +306,7 @@ class ApkgExporter {
   List<num> _parseSteps(String csv) =>
       csv.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).map(num.parse).toList();
 
-  void _writeNotes(sqlite.Database db, List<Note> notes) {
+  void _writeNotes(sqlite.Database db, List<Note> notes, Map<int, int> sortFieldIndexByNotetype) {
     final stmt = db.prepare(
       'INSERT INTO notes (id, guid, mid, mod, usn, tags, flds, sfld, csum, flags, data) '
       'VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, 0, \'\')',
@@ -310,7 +314,11 @@ class ApkgExporter {
     try {
       for (final note in notes) {
         final fields = (jsonDecode(note.fieldsJson) as List).cast<String>();
-        final sfld = fields.isNotEmpty ? fields.first : '';
+        final sortOrd = sortFieldIndexByNotetype[note.notetypeId] ?? 0;
+        final rawSortField = sortOrd < fields.length ? fields[sortOrd] : (fields.isNotEmpty ? fields.first : '');
+        // Anki's sfld is the sort field with HTML stripped - it's what the
+        // browser sorts/displays by, not raw markup.
+        final sfld = rawSortField.replaceAll(RegExp('<[^>]*>'), '').trim();
         final tags = note.tags.trim();
         stmt.execute([
           note.id,
@@ -320,7 +328,7 @@ class ApkgExporter {
           tags.isEmpty ? '' : ' $tags ',
           fields.join('\x1f'),
           sfld,
-          sfld.hashCode & 0x7fffffff,
+          _fieldChecksum(sfld),
         ]);
       }
     } finally {
@@ -328,7 +336,18 @@ class ApkgExporter {
     }
   }
 
-  void _writeCards(sqlite.Database db, List<CardEntry> cards) {
+  /// Anki's `csum`: the first 8 hex digits of the SHA-1 hash of the sort
+  /// field, read as an integer - used to speed up duplicate detection. Not
+  /// load-bearing for correctness (Anki re-derives it on next full sync
+  /// regardless), but matching the real convention rather than a
+  /// `String.hashCode` means a re-imported file's checksums line up with
+  /// what real Anki would have written for the same content.
+  int _fieldChecksum(String sfld) {
+    final hex = sha1.convert(utf8.encode(sfld)).toString();
+    return int.parse(hex.substring(0, 8), radix: 16);
+  }
+
+  void _writeCards(sqlite.Database db, List<CardEntry> cards, Map<int, DeckConfig> configByDeck) {
     final stmt = db.prepare(
       'INSERT INTO cards (id, nid, did, ord, mod, usn, type, queue, due, ivl, factor, reps, lapses, left, odue, odid, flags, data) '
       'VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, \'\')',
@@ -336,7 +355,7 @@ class ApkgExporter {
     try {
       for (final c in cards) {
         final (type, queue) = _ankiTypeAndQueue(c);
-        final left = (c.queue == CardQueue.learning || c.queue == CardQueue.relearning) ? 1001 : 0;
+        final left = _remainingStepsLeft(c, configByDeck[c.deckId]);
         stmt.execute([
           c.id,
           c.noteId,
@@ -376,6 +395,21 @@ class ApkgExporter {
       case CardQueue.suspended:
         return (c.ivl > 0 ? 2 : 0, -1);
     }
+  }
+
+  /// Anki packs `left` as `stepsRemainingToday + stepsRemainingTotal * 1000`
+  /// - we don't model same-day-vs-later bury separately, so both halves use
+  /// the same count: how many (re)learning steps, including the current
+  /// one, are still ahead of this card. A hardcoded 1001 previously claimed
+  /// every learning/relearning card had exactly 1 step left, which is wrong
+  /// for any deck with more than one learning step or a card partway
+  /// through them.
+  int _remainingStepsLeft(CardEntry c, DeckConfig? config) {
+    if (c.queue != CardQueue.learning && c.queue != CardQueue.relearning) return 0;
+    if (config == null) return 1001;
+    final steps = _parseSteps(c.queue == CardQueue.relearning ? config.relearningStepsMin : config.learningStepsMin);
+    final remaining = max(1, steps.length - c.stepIndex);
+    return remaining + remaining * 1000;
   }
 
   void _writeRevlog(sqlite.Database db, List<RevLogData> revlog) {
