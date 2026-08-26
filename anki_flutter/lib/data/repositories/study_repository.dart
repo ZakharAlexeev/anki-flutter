@@ -43,8 +43,11 @@ class StudyRepository {
     return (_db.select(_db.deckConfigs)..where((c) => c.id.equals(deck.deckConfigId))).getSingle();
   }
 
-  /// Cards ready to study right now, ordered learning -> review -> new
-  /// (a simplified but faithful approximation of Anki's default mix).
+  /// Cards ready to study right now, ordered: learning steps that have
+  /// actually elapsed -> review -> new -> learning steps still counting
+  /// down (pulled in early only so the session doesn't stall waiting on
+  /// them, not so they cut in front of the rest of the deck) - a
+  /// simplified but faithful approximation of Anki's default mix.
   ///
   /// New/review counts are capped by how many are *actually still allowed
   /// today* - the deck's per-day limit (or its override) minus how many
@@ -66,13 +69,23 @@ class StudyRepository {
     final reviewShown = deck.reviewsShownDay == t ? deck.reviewsShownToday : 0;
     final reviewRemaining = max(0, reviewLimit - reviewShown);
 
-    final learning = await (_db.select(_db.cards)
+    final learningRows = await (_db.select(_db.cards)
           ..where((c) =>
               c.deckId.equals(deckId) &
               (c.queue.equalsValue(CardQueue.learning) | c.queue.equalsValue(CardQueue.relearning)) &
               c.due.isSmallerOrEqualValue(lookAheadSec))
           ..orderBy([(c) => OrderingTerm.asc(c.due)]))
         .get();
+    // A card answered "Again"/"Hard" a moment ago has due = now + its step
+    // delay (e.g. 1-10 min), which is well within the look-ahead window -
+    // so without this split it re-appeared as literally the very next card
+    // over and over, ahead of everything else in the deck, since it's
+    // always first in the concatenation below. Only a card whose step has
+    // actually elapsed (due <= now) should jump the queue like that;
+    // anything still counting down waits at the back until it's ready.
+    final nowSec = n.millisecondsSinceEpoch ~/ 1000;
+    final learning = learningRows.where((c) => c.due <= nowSec).toList();
+    final learningAhead = learningRows.where((c) => c.due > nowSec).toList();
 
     final review = reviewRemaining == 0
         ? <CardEntry>[]
@@ -91,7 +104,7 @@ class StudyRepository {
               ..limit(newRemaining))
             .get();
 
-    return [...learning, ...review, ...newCards];
+    return [...learning, ...review, ...newCards, ...learningAhead];
   }
 
   Future<DueQueueCounts> counts(int deckId, {DateTime? now}) async {
