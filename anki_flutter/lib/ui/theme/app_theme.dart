@@ -84,7 +84,7 @@ class AppTheme {
       ),
       titleMedium: TextStyle(
         fontSize: 16,
-        fontWeight: FontWeight.w650,
+        fontWeight: FontWeight.w600,
         letterSpacing: -0.1,
         color: text,
       ),
@@ -93,7 +93,7 @@ class AppTheme {
       bodySmall: TextStyle(fontSize: 12.5, height: 1.4, color: muted),
       labelLarge: const TextStyle(
         fontSize: 14,
-        fontWeight: FontWeight.w650,
+        fontWeight: FontWeight.w600,
         letterSpacing: 0.05,
       ),
     );
