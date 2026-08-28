@@ -188,6 +188,14 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
                   children: [
+                    Text('РАСПИСАНИЕ', style: Theme.of(context).textTheme.labelSmall),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text('Параметры повторения', style: Theme.of(context).textTheme.headlineSmall),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Настройте темп обучения. Значения применяются только к этой колоде.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: context.appColors.muted),
+                    ),
                     _section('Шаги обучения'),
                     _numRow(_learningSteps, 'Новые (мин, через запятую)'),
                     _numRow(_relearningSteps, 'Повтор после ошибки (мин, через запятую)'),
@@ -228,8 +236,14 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
   }
 
   Widget _section(String title) => Padding(
-        padding: const EdgeInsets.only(top: AppSpacing.lg, bottom: AppSpacing.sm),
-        child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+        padding: const EdgeInsets.only(top: AppSpacing.xl, bottom: AppSpacing.md),
+        child: Row(
+          children: [
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(child: Divider(color: context.appColors.border)),
+          ],
+        ),
       );
 
   Widget _numRow(TextEditingController controller, String label) => Padding(

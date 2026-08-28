@@ -119,20 +119,43 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
                   child: ListView(
                     padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
                     children: [
-                      DropdownButtonFormField<Notetype>(
-                        initialValue: notetypes.contains(_notetype) ? _notetype : notetypes.first,
-                        decoration: const InputDecoration(labelText: 'Тип карточки'),
-                        items: [for (final nt in notetypes) DropdownMenuItem(value: nt, child: Text(nt.name))],
-                        onChanged: _onNotetypeChanged,
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      DropdownButtonFormField<Deck>(
-                        initialValue: decks.contains(_deck) ? _deck : (decks.isNotEmpty ? decks.first : null),
-                        decoration: const InputDecoration(labelText: 'Колода'),
-                        items: [for (final d in decks) DropdownMenuItem(value: d, child: Text(d.name))],
-                        onChanged: (d) => setState(() => _deck = d),
+                      Text('НОВАЯ ЗАМЕТКА', style: Theme.of(context).textTheme.labelSmall),
+                      const SizedBox(height: AppSpacing.sm),
+                      Text('Добавьте материал', style: Theme.of(context).textTheme.headlineSmall),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Сначала выберите формат и колоду, затем заполните поля карточки.',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: context.appColors.muted),
                       ),
                       const SizedBox(height: AppSpacing.lg),
+                      Container(
+                        padding: const EdgeInsets.all(AppSpacing.md),
+                        decoration: BoxDecoration(
+                          color: context.appColors.surfaceAlt,
+                          borderRadius: BorderRadius.circular(kAppRadius),
+                          border: Border.all(color: context.appColors.border),
+                        ),
+                        child: Column(
+                          children: [
+                            DropdownButtonFormField<Notetype>(
+                              initialValue: notetypes.contains(_notetype) ? _notetype : notetypes.first,
+                              decoration: const InputDecoration(labelText: 'Тип карточки'),
+                              items: [for (final nt in notetypes) DropdownMenuItem(value: nt, child: Text(nt.name))],
+                              onChanged: _onNotetypeChanged,
+                            ),
+                            const SizedBox(height: AppSpacing.md),
+                            DropdownButtonFormField<Deck>(
+                              initialValue: decks.contains(_deck) ? _deck : (decks.isNotEmpty ? decks.first : null),
+                              decoration: const InputDecoration(labelText: 'Колода'),
+                              items: [for (final d in decks) DropdownMenuItem(value: d, child: Text(d.name))],
+                              onChanged: (d) => setState(() => _deck = d),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      Text('СОДЕРЖИМОЕ', style: Theme.of(context).textTheme.labelSmall),
+                      const SizedBox(height: AppSpacing.sm),
                       for (final field in _fields)
                         Padding(
                           padding: const EdgeInsets.only(bottom: AppSpacing.md),

@@ -141,7 +141,18 @@ class _StudyScreenState extends State<StudyScreen> {
             Padding(
               padding: const EdgeInsets.only(right: AppSpacing.lg),
               child: Center(
-                child: Text('${_queue.length}', style: Theme.of(context).textTheme.bodySmall),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: context.appColors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: context.appColors.border),
+                  ),
+                  child: Text(
+                    'ОСТАЛОСЬ  ${_queue.length}',
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ),
               ),
             ),
         ],
@@ -172,22 +183,28 @@ class _StudyScreenState extends State<StudyScreen> {
                     constraints: const BoxConstraints(maxWidth: 640),
                     child: SingleChildScrollView(
                       padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xl),
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xl),
-                        decoration: BoxDecoration(
-                          color: colors.surface,
-                          borderRadius: BorderRadius.circular(kAppRadius),
-                          border: Border.all(color: colors.border),
-                        ),
-                        // Matches Anki's own reviewer: the answer template
-                        // (typically `{{FrontSide}}<hr>{{Back}}`) already
-                        // repeats the question above its own divider, so we
-                        // swap to it rather than showing the question twice.
-                        child: HtmlView(
-                          html: _showAnswer ? answerHtml : questionHtml,
-                          css: rendered.css,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(_showAnswer ? 'ОТВЕТ' : 'ВОПРОС', style: Theme.of(context).textTheme.labelSmall),
+                          const SizedBox(height: AppSpacing.sm),
+                          Container(
+                            width: double.infinity,
+                            constraints: const BoxConstraints(minHeight: 220),
+                            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: 38),
+                            decoration: BoxDecoration(
+                              color: colors.surface,
+                              borderRadius: BorderRadius.circular(kAppRadius),
+                              border: Border.all(color: colors.border),
+                            ),
+                            // The answer template usually includes FrontSide,
+                            // so it replaces the question instead of duplicating it.
+                            child: HtmlView(
+                              html: _showAnswer ? answerHtml : questionHtml,
+                              css: rendered.css,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -223,38 +240,44 @@ class _StudyScreenState extends State<StudyScreen> {
 
   Widget _buildAnswerButtons() {
     final previews = _previews;
-    return Row(
-      children: [
-        Expanded(child: _ratingButton(Rating.again, 'Снова', AppColors.again, previews)),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: _ratingButton(Rating.hard, 'Трудно', AppColors.hard, previews)),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: _ratingButton(Rating.good, 'Хорошо', AppColors.good, previews)),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: _ratingButton(Rating.easy, 'Легко', AppColors.easy, previews)),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth < 500 ? 2 : 4;
+        final gap = AppSpacing.sm * (columns - 1);
+        final itemWidth = (constraints.maxWidth - gap) / columns;
+        return Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [
+            SizedBox(width: itemWidth, child: _ratingButton(Rating.again, 'Снова', AppColors.again, previews)),
+            SizedBox(width: itemWidth, child: _ratingButton(Rating.hard, 'Трудно', AppColors.hard, previews)),
+            SizedBox(width: itemWidth, child: _ratingButton(Rating.good, 'Хорошо', AppColors.good, previews)),
+            SizedBox(width: itemWidth, child: _ratingButton(Rating.easy, 'Легко', AppColors.easy, previews)),
+          ],
+        );
+      },
     );
   }
 
   Widget _ratingButton(Rating rating, String label, Color color, Map<Rating, CardSchedState>? previews) {
     final preview = previews?[rating];
     return Material(
-      color: color.withValues(alpha: 0.10),
+      color: context.appColors.surface,
       borderRadius: BorderRadius.circular(kAppRadiusSmall),
       child: InkWell(
         borderRadius: BorderRadius.circular(kAppRadiusSmall),
         onTap: _answering ? null : () => _answer(rating),
         child: Container(
-          height: 60,
+          height: 64,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(kAppRadiusSmall),
-            border: Border.all(color: color.withValues(alpha: 0.35)),
+            border: Border.all(color: color.withValues(alpha: 0.65)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13)),
+              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 13)),
               if (preview != null) ...[
                 const SizedBox(height: 2),
                 Text(_intervalLabel(preview), style: TextStyle(color: color.withValues(alpha: 0.75), fontSize: 11)),

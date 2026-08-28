@@ -25,19 +25,11 @@ class DeckListScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         titleSpacing: AppSpacing.lg,
-        title: Row(
+        title: const Row(
           children: [
-            Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: AppColors.accentSoft,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: const Icon(Icons.auto_awesome_mosaic_outlined, color: AppColors.accent, size: 20),
-            ),
-            const SizedBox(width: AppSpacing.sm + 2),
-            const Text('Anki Flutter'),
+            Icon(Icons.view_agenda_outlined, color: AppColors.accent, size: 21),
+            SizedBox(width: AppSpacing.sm + 2),
+            Text('Anki'),
           ],
         ),
         actions: [
@@ -78,10 +70,12 @@ class DeckListScreen extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Ваши колоды', style: theme.textTheme.headlineSmall),
-                            const SizedBox(height: AppSpacing.xs),
+                            Text('СЕГОДНЯ', style: theme.textTheme.labelSmall),
+                            const SizedBox(height: AppSpacing.sm),
+                            Text('Колоды', style: theme.textTheme.headlineSmall),
+                            const SizedBox(height: 6),
                             Text(
-                              'Продолжайте повторение или создайте новую подборку карточек.',
+                              'Выберите тему и продолжите с того места, где остановились.',
                               style: theme.textTheme.bodyMedium?.copyWith(color: colors.muted),
                             ),
                           ],
@@ -183,7 +177,7 @@ class _TopAction extends StatelessWidget {
       height: 42,
       decoration: BoxDecoration(
         color: context.appColors.surface,
-        borderRadius: BorderRadius.circular(13),
+        borderRadius: BorderRadius.circular(kAppRadiusSmall),
         border: Border.all(color: context.appColors.border),
       ),
       child: IconButton(icon: Icon(icon, size: 20), tooltip: tooltip, onPressed: onPressed),
@@ -203,36 +197,21 @@ class _EmptyState extends StatelessWidget {
       child: Container(
         width: 420,
         margin: const EdgeInsets.all(AppSpacing.xl),
-        padding: const EdgeInsets.all(AppSpacing.xl),
+        padding: const EdgeInsets.fromLTRB(AppSpacing.xl, 36, AppSpacing.xl, AppSpacing.xl),
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: BorderRadius.circular(28),
+          borderRadius: BorderRadius.circular(kAppRadius),
           border: Border.all(color: colors.border),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF1B2138).withValues(alpha: 0.05),
-              blurRadius: 28,
-              offset: const Offset(0, 12),
-            ),
-          ],
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 64,
-              height: 64,
-              decoration: BoxDecoration(
-                color: AppColors.accentSoft,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Icon(Icons.style_outlined, size: 30, color: AppColors.accent),
-            ),
+            const Icon(Icons.style_outlined, size: 38, color: AppColors.accent),
             const SizedBox(height: AppSpacing.lg),
             Text('Создайте первую колоду', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: AppSpacing.sm),
             Text(
-              'Соберите карточки по теме и начните интервальное повторение.',
+              'Соберите карточки по теме. Расписание повторений приложение рассчитает само.',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colors.muted),
               textAlign: TextAlign.center,
             ),
@@ -296,35 +275,27 @@ class _DeckTileState extends State<_DeckTile> {
             onTap: () => Navigator.of(context)
                 .push(MaterialPageRoute(builder: (_) => StudyScreen(deckId: deck.id, deckName: deck.name))),
             child: Container(
-              padding: const EdgeInsets.all(AppSpacing.lg),
+              padding: const EdgeInsets.fromLTRB(AppSpacing.md, 18, AppSpacing.sm, 18),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(kAppRadius),
                 border: Border.all(color: colors.border),
-                boxShadow: [
-                  BoxShadow(
-                    color: const Color(0xFF1B2138).withValues(alpha: 0.035),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
               ),
               child: Row(
                 children: [
                   Container(
-                    width: 48,
-                    height: 48,
+                    width: 4,
+                    height: 56,
                     decoration: BoxDecoration(
-                      color: AppColors.accentSoft,
-                      borderRadius: BorderRadius.circular(15),
+                      color: totalDue == 0 ? colors.border : AppColors.accent,
+                      borderRadius: BorderRadius.circular(99),
                     ),
-                    child: const Icon(Icons.layers_outlined, color: AppColors.accent, size: 22),
                   ),
                   const SizedBox(width: AppSpacing.md),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(deck.name, style: textTheme.titleMedium),
+                        Text(deck.name, style: textTheme.titleMedium?.copyWith(fontSize: 17)),
                         const SizedBox(height: AppSpacing.sm),
                         if (counts == null)
                           Text('Загрузка…', style: textTheme.bodySmall)
@@ -351,16 +322,12 @@ class _DeckTileState extends State<_DeckTile> {
                   ),
                   if (totalDue != null && totalDue > 0) ...[
                     const SizedBox(width: AppSpacing.md),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentSoft,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        '$totalDue',
-                        style: textTheme.labelLarge?.copyWith(color: AppColors.accent),
-                      ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text('$totalDue', style: textTheme.titleLarge?.copyWith(color: AppColors.accentStrong)),
+                        Text('осталось', style: textTheme.bodySmall),
+                      ],
                     ),
                   ],
                   const SizedBox(width: AppSpacing.sm),
@@ -470,12 +437,13 @@ class _CountPill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(999),
+        color: context.appColors.surfaceAlt,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: context.appColors.border),
       ),
       child: Text(
         '$count · $label',
-        style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w600),
+        style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700),
       ),
     );
   }

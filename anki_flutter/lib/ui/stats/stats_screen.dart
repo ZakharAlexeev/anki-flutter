@@ -47,6 +47,15 @@ class _StatsScreenState extends State<StatsScreen> {
                 child: ListView(
                   padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
                   children: [
+                    Text('ОБЗОР', style: Theme.of(context).textTheme.labelSmall),
+                    const SizedBox(height: AppSpacing.sm),
+                    Text('Ритм обучения', style: Theme.of(context).textTheme.headlineSmall),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Короткая сводка и динамика повторений.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: context.appColors.muted),
+                    ),
+                    const SizedBox(height: AppSpacing.lg),
                     _TodayRow(today: stats.today),
                     const SizedBox(height: AppSpacing.lg),
                     _ChartCard(
@@ -95,6 +104,7 @@ class _ChartCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.lg),
       decoration: BoxDecoration(
+        color: colors.surface,
         borderRadius: BorderRadius.circular(kAppRadius),
         border: Border.all(color: colors.border),
       ),
@@ -117,13 +127,11 @@ class _TodayRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: _StatTile(label: 'Повторено сегодня', value: '${today.reviewCount}')),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: _StatTile(label: 'Минут', value: '${today.minutesStudied}')),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: _StatTile(label: 'Точность', value: '${today.accuracyPct.round()}%')),
+    return _ResponsiveStatRow(
+      tiles: [
+        _StatTile(label: 'Повторено сегодня', value: '${today.reviewCount}'),
+        _StatTile(label: 'Минут', value: '${today.minutesStudied}'),
+        _StatTile(label: 'Точность', value: '${today.accuracyPct.round()}%'),
       ],
     );
   }
@@ -136,14 +144,33 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(child: _StatTile(label: 'Заметок', value: '${stats.totalNotes}')),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: _StatTile(label: 'Всего повторений', value: '${stats.totalReviews}')),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: _StatTile(label: 'Изучено (зрелые)', value: '${stats.matureCount}')),
+    return _ResponsiveStatRow(
+      tiles: [
+        _StatTile(label: 'Заметок', value: '${stats.totalNotes}'),
+        _StatTile(label: 'Всего повторений', value: '${stats.totalReviews}'),
+        _StatTile(label: 'Изучено (зрелые)', value: '${stats.matureCount}'),
       ],
+    );
+  }
+}
+
+class _ResponsiveStatRow extends StatelessWidget {
+  const _ResponsiveStatRow({required this.tiles});
+
+  final List<Widget> tiles;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth < 520 ? 1 : 3;
+        final width = (constraints.maxWidth - AppSpacing.sm * (columns - 1)) / columns;
+        return Wrap(
+          spacing: AppSpacing.sm,
+          runSpacing: AppSpacing.sm,
+          children: [for (final tile in tiles) SizedBox(width: width, child: tile)],
+        );
+      },
     );
   }
 }
@@ -160,14 +187,16 @@ class _StatTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.sm),
       decoration: BoxDecoration(
+        color: colors.surface,
         borderRadius: BorderRadius.circular(kAppRadius),
         border: Border.all(color: colors.border),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          Text(label.toUpperCase(), style: Theme.of(context).textTheme.labelSmall),
+          const SizedBox(height: AppSpacing.sm),
           Text(value, style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 2),
-          Text(label, style: Theme.of(context).textTheme.bodySmall, textAlign: TextAlign.center),
         ],
       ),
     );

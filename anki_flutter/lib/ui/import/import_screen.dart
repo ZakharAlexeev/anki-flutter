@@ -69,18 +69,40 @@ class _ImportScreenState extends State<ImportScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Text('ПЕРЕНОС ДАННЫХ', style: Theme.of(context).textTheme.labelSmall),
+                const SizedBox(height: AppSpacing.sm),
+                Text('Импорт колоды', style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: 6),
                 Text(
-                  'Выберите файл колоды Anki (.apkg или .colpkg), экспортированный '
-                  'из настольного или мобильного приложения Anki.',
-                  style: Theme.of(context).textTheme.bodyMedium,
+                  'Поддерживаются файлы .apkg и .colpkg из настольного или мобильного Anki.',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colors.muted),
                 ),
                 const SizedBox(height: AppSpacing.lg),
-                SizedBox(
-                  height: 48,
-                  child: FilledButton.icon(
-                    onPressed: _running ? null : _pickAndImport,
-                    icon: const Icon(Icons.file_open_outlined, size: 18),
-                    label: const Text('Выбрать файл'),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.xl),
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(kAppRadius),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: Column(
+                    children: [
+                      const Icon(Icons.file_present_outlined, color: AppColors.accent, size: 32),
+                      const SizedBox(height: AppSpacing.md),
+                      Text('Файл коллекции Anki', style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'Данные объединятся с текущей коллекцией.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      FilledButton.icon(
+                        onPressed: _running ? null : _pickAndImport,
+                        icon: const Icon(Icons.file_open_outlined, size: 18),
+                        label: const Text('Выбрать файл'),
+                      ),
+                    ],
                   ),
                 ),
                 if (_running || _progress != null) ...[

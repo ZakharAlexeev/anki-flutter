@@ -89,16 +89,28 @@ class _CardBrowserScreenState extends State<CardBrowserScreen> {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 760),
                     child: ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.sm, AppSpacing.lg, AppSpacing.xl),
-                      itemCount: filtered.length,
-                      itemBuilder: (context, i) => Padding(
-                        padding: const EdgeInsets.only(bottom: AppSpacing.sm),
-                        child: _CardRow(
-                          card: filtered[i].$1,
-                          note: filtered[i].$2,
-                          onChanged: _load,
-                        ),
-                      ),
+                      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
+                      itemCount: filtered!.length + 1,
+                      itemBuilder: (context, i) {
+                        final visibleRows = filtered!;
+                        if (i == 0) {
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                            child: Row(
+                              children: [
+                                Text('КАРТОЧКИ', style: Theme.of(context).textTheme.labelSmall),
+                                const Spacer(),
+                                Text('${visibleRows.length}', style: Theme.of(context).textTheme.bodySmall),
+                              ],
+                            ),
+                          );
+                        }
+                        final row = visibleRows[i - 1];
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                          child: _CardRow(card: row.$1, note: row.$2, onChanged: _load),
+                        );
+                      },
                     ),
                   ),
                 ),
@@ -124,6 +136,7 @@ class _CardRow extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       decoration: BoxDecoration(
+        color: colors.surface,
         borderRadius: BorderRadius.circular(kAppRadius),
         border: Border.all(color: colors.border),
       ),
@@ -142,6 +155,10 @@ class _CardRow extends StatelessWidget {
                 if (note.tags.trim().isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(note.tags.trim(), style: Theme.of(context).textTheme.bodySmall),
+                ],
+                if (suspended) ...[
+                  const SizedBox(height: AppSpacing.xs),
+                  Text('ПРИОСТАНОВЛЕНА', style: Theme.of(context).textTheme.labelSmall?.copyWith(color: AppColors.hard)),
                 ],
               ],
             ),
