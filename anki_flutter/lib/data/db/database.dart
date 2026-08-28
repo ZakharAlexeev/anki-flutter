@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
@@ -62,9 +64,8 @@ class AppDatabase extends _$AppDatabase {
         },
       );
 
-  /// Ensures a single [CollectionMeta] row and a default [DeckConfigs] +
-  /// "Default" deck exist, mirroring a fresh Anki profile. Safe to call on
-  /// every startup.
+  /// Ensures a single [CollectionMeta] row and the built-in starter content
+  /// exist. Safe to call on every startup.
   Future<void> ensureSeeded() async {
     await transaction(() async {
       // getSingleOrNull() throws if more than one row comes back, so every
@@ -80,13 +81,160 @@ class AppDatabase extends _$AppDatabase {
       var deckConfigId = anyDeckConfig?.id;
       deckConfigId ??= await into(deckConfigs).insert(const DeckConfigsCompanion(name: Value('Default')));
 
-      final anyDeck = await (select(decks)..limit(1)).getSingleOrNull();
-      if (anyDeck == null) {
+      final defaultDeck = await (select(decks)..where((d) => d.name.equals('Default'))).getSingleOrNull();
+      if (defaultDeck == null) {
         await into(decks).insert(DecksCompanion(name: const Value('Default'), deckConfigId: Value(deckConfigId)));
       }
+
+      await _ensureEnglishVocabularySeed(deckConfigId);
     });
   }
+
+  Future<void> _ensureEnglishVocabularySeed(int deckConfigId) async {
+    const deckName = 'Английский';
+    const notetypeName = 'English Vocabulary RU→EN';
+
+    var englishDeck = await (select(decks)..where((d) => d.name.equals(deckName))).getSingleOrNull();
+    if (englishDeck == null) {
+      final id = await into(decks).insert(
+        DecksCompanion(name: const Value(deckName), deckConfigId: Value(deckConfigId)),
+      );
+      englishDeck = await (select(decks)..where((d) => d.id.equals(id))).getSingle();
+    }
+
+    var vocabularyType =
+        await (select(notetypes)..where((n) => n.name.equals(notetypeName))).getSingleOrNull();
+    if (vocabularyType == null) {
+      final id = await into(notetypes).insert(
+        const NotetypesCompanion(name: Value(notetypeName)),
+      );
+      await into(notetypeFields).insert(
+        NotetypeFieldsCompanion(
+          notetypeId: Value(id),
+          name: const Value('Russian'),
+          ord: const Value(0),
+        ),
+      );
+      await into(notetypeFields).insert(
+        NotetypeFieldsCompanion(
+          notetypeId: Value(id),
+          name: const Value('English'),
+          ord: const Value(1),
+        ),
+      );
+      await into(notetypeTemplates).insert(
+        NotetypeTemplatesCompanion(
+          notetypeId: Value(id),
+          name: const Value('Russian → English'),
+          ord: const Value(0),
+          questionFormat: const Value('{{Russian}}'),
+          answerFormat: const Value('{{English}}'),
+        ),
+      );
+      vocabularyType = await (select(notetypes)..where((n) => n.id.equals(id))).getSingle();
+    }
+
+    // The notetype itself is the idempotency marker. If it already owns any
+    // notes, this starter pack has been installed before and must not be
+    // duplicated on future launches.
+    final existingSeed = await (select(notes)
+          ..where((n) => n.notetypeId.equals(vocabularyType.id))
+          ..limit(1))
+        .getSingleOrNull();
+    if (existingSeed != null) return;
+
+    for (var i = 0; i < _englishVocabularySeed.length; i++) {
+      final entry = _englishVocabularySeed[i];
+      final noteId = await into(notes).insert(
+        NotesCompanion(
+          notetypeId: Value(vocabularyType.id),
+          fieldsJson: Value(jsonEncode([entry.russian, entry.english])),
+          tags: const Value('seed::english'),
+        ),
+      );
+      await into(cards).insert(
+        CardsCompanion(
+          noteId: Value(noteId),
+          deckId: Value(englishDeck.id),
+          templateOrd: const Value(0),
+          due: Value(i),
+        ),
+      );
+    }
+  }
 }
+
+class _VocabularySeedEntry {
+  const _VocabularySeedEntry(this.russian, this.english);
+
+  final String russian;
+  final String english;
+}
+
+const _englishVocabularySeed = <_VocabularySeedEntry>[
+  _VocabularySeedEntry('придерживаться своих принципов', 'adhere to your principles'),
+  _VocabularySeedEntry('вызвать у кого-либо интерес', "arouse someone's interest"),
+  _VocabularySeedEntry('предложить / выступить с предложением', 'come up with a suggestion'),
+  _VocabularySeedEntry('категорически противоречить', 'flatly contradict'),
+  _VocabularySeedEntry('принципиально разные', 'fundamentally different'),
+  _VocabularySeedEntry('начать экономить', 'go on an economy drive'),
+  _VocabularySeedEntry('сильный дождь', 'heavy rain'),
+  _VocabularySeedEntry('вести семинар', 'lead a seminar'),
+  _VocabularySeedEntry('слой краски', 'a lick of paint'),
+  _VocabularySeedEntry('играть на бирже', 'play the stock market'),
+  _VocabularySeedEntry('мудрые слова / мудрость', 'words of wisdom'),
+  _VocabularySeedEntry('аппетитный; такой, что слюнки текут', 'mouth-watering'),
+  _VocabularySeedEntry('красивый, как на картине', 'picturesque'),
+  _VocabularySeedEntry('очень красивый; потрясающий', 'stunning'),
+  _VocabularySeedEntry('просторный', 'spacious'),
+  _VocabularySeedEntry('уединённый', 'secluded'),
+  _VocabularySeedEntry('отступать от; отклоняться от', 'depart from'),
+  _VocabularySeedEntry('смягчающие обстоятельства / факторы', 'mitigating circumstances / factors'),
+  _VocabularySeedEntry('ненастная / плохая погода', 'inclement weather'),
+  _VocabularySeedEntry('каштановые волосы', 'auburn hair'),
+  _VocabularySeedEntry('очень счастливый', 'deliriously happy'),
+  _VocabularySeedEntry('прервать / отложить встречу', 'adjourn the meeting'),
+  _VocabularySeedEntry('туда и сюда', 'to and fro'),
+  _VocabularySeedEntry('согласие по основным вопросам', 'in broad agreement'),
+  _VocabularySeedEntry('широкий проспект', 'a broad avenue'),
+  _VocabularySeedEntry('широкая улыбка / широкие плечи', 'a broad smile / broad shoulders'),
+  _VocabularySeedEntry('сильный, ярко выраженный акцент', 'a broad accent'),
+  _VocabularySeedEntry('явный намёк', 'a broad hint'),
+  _VocabularySeedEntry('широкий спектр', 'a broad range'),
+  _VocabularySeedEntry('длинное путешествие, как правило по морю', 'voyage'),
+  _VocabularySeedEntry('поездка из одного места в другое', 'journey'),
+  _VocabularySeedEntry('короткая поездка, обычно с определённой целью', 'trip'),
+  _VocabularySeedEntry('перемещение / путешествие как процесс', 'travel'),
+  _VocabularySeedEntry('панорама; то, что видно из конкретного места', 'view'),
+  _VocabularySeedEntry('достопримечательность; то, что привлекает внимание', 'sight'),
+  _VocabularySeedEntry('область; площадь', 'area'),
+  _VocabularySeedEntry('территория под управлением', 'territory'),
+  _VocabularySeedEntry('период регулярного события или пик активности', 'season'),
+  _VocabularySeedEntry('отрезок времени с чётким началом и концом', 'period'),
+  _VocabularySeedEntry('билет', 'ticket'),
+  _VocabularySeedEntry('тариф; стоимость проезда', 'fare'),
+  _VocabularySeedEntry('оплата услуги', 'fee'),
+  _VocabularySeedEntry('принести', 'bring'),
+  _VocabularySeedEntry('отнести', 'take'),
+  _VocabularySeedEntry('идти', 'go'),
+  _VocabularySeedEntry('идти впереди и вести за собой', 'lead'),
+  _VocabularySeedEntry('указывать путь', 'guide'),
+  _VocabularySeedEntry('догнать; поравняться с', 'catch up with'),
+  _VocabularySeedEntry('зарегистрироваться в аэропорту / отеле', 'check in'),
+  _VocabularySeedEntry('выписаться из отеля', 'check out'),
+  _VocabularySeedEntry('высадить кого-либо из транспорта', 'drop off'),
+  _VocabularySeedEntry('вернуться из какого-либо места', 'get back'),
+  _VocabularySeedEntry('уехать; отправиться в отпуск', 'go away'),
+  _VocabularySeedEntry('держаться в том же темпе; не отставать от', 'keep up with'),
+  _VocabularySeedEntry('направляться к / в сторону', 'make for'),
+  _VocabularySeedEntry('подобрать кого-либо на транспорте', 'pick up'),
+  _VocabularySeedEntry('прибыть / подъехать', 'pull in'),
+  _VocabularySeedEntry('задавить кого-либо транспортом', 'run over'),
+  _VocabularySeedEntry('проводить уезжающего', 'see off'),
+  _VocabularySeedEntry('отправиться в поездку / путь', 'set out'),
+  _VocabularySeedEntry('взлететь', 'take off'),
+  _VocabularySeedEntry('развернуться', 'turn round'),
+];
 
 QueryExecutor _openConnection() {
   return driftDatabase(name: 'anki_flutter');
