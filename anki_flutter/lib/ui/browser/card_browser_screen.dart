@@ -90,9 +90,9 @@ class _CardBrowserScreenState extends State<CardBrowserScreen> {
                     constraints: const BoxConstraints(maxWidth: 760),
                     child: ListView.builder(
                       padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
-                      itemCount: filtered!.length + 1,
+                      itemCount: filtered.length + 1,
                       itemBuilder: (context, i) {
-                        final visibleRows = filtered!;
+                        final visibleRows = filtered;
                         if (i == 0) {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
