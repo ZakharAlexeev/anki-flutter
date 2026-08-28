@@ -475,7 +475,7 @@ class _CountPill extends StatelessWidget {
       ),
       child: Text(
         '$count · $label',
-        style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w650),
+        style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w600),
       ),
     );
   }
