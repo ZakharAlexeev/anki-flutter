@@ -94,51 +94,56 @@ class AppDatabase extends _$AppDatabase {
     const deckName = 'Английский';
     const notetypeName = 'English Vocabulary RU→EN';
 
-    var englishDeck = await (select(decks)..where((d) => d.name.equals(deckName))).getSingleOrNull();
-    if (englishDeck == null) {
-      final id = await into(decks).insert(
+    final existingEnglishDeck =
+        await (select(decks)..where((d) => d.name.equals(deckName))).getSingleOrNull();
+    final int englishDeckId;
+    if (existingEnglishDeck == null) {
+      englishDeckId = await into(decks).insert(
         DecksCompanion(name: const Value(deckName), deckConfigId: Value(deckConfigId)),
       );
-      englishDeck = await (select(decks)..where((d) => d.id.equals(id))).getSingle();
+    } else {
+      englishDeckId = existingEnglishDeck.id;
     }
 
-    var vocabularyType =
+    final existingVocabularyType =
         await (select(notetypes)..where((n) => n.name.equals(notetypeName))).getSingleOrNull();
-    if (vocabularyType == null) {
-      final id = await into(notetypes).insert(
+    final int vocabularyTypeId;
+    if (existingVocabularyType == null) {
+      vocabularyTypeId = await into(notetypes).insert(
         const NotetypesCompanion(name: Value(notetypeName)),
       );
       await into(notetypeFields).insert(
         NotetypeFieldsCompanion(
-          notetypeId: Value(id),
+          notetypeId: Value(vocabularyTypeId),
           name: const Value('Russian'),
           ord: const Value(0),
         ),
       );
       await into(notetypeFields).insert(
         NotetypeFieldsCompanion(
-          notetypeId: Value(id),
+          notetypeId: Value(vocabularyTypeId),
           name: const Value('English'),
           ord: const Value(1),
         ),
       );
       await into(notetypeTemplates).insert(
         NotetypeTemplatesCompanion(
-          notetypeId: Value(id),
+          notetypeId: Value(vocabularyTypeId),
           name: const Value('Russian → English'),
           ord: const Value(0),
           questionFormat: const Value('{{Russian}}'),
           answerFormat: const Value('{{English}}'),
         ),
       );
-      vocabularyType = await (select(notetypes)..where((n) => n.id.equals(id))).getSingle();
+    } else {
+      vocabularyTypeId = existingVocabularyType.id;
     }
 
     // The notetype itself is the idempotency marker. If it already owns any
     // notes, this starter pack has been installed before and must not be
     // duplicated on future launches.
     final existingSeed = await (select(notes)
-          ..where((n) => n.notetypeId.equals(vocabularyType.id))
+          ..where((n) => n.notetypeId.equals(vocabularyTypeId))
           ..limit(1))
         .getSingleOrNull();
     if (existingSeed != null) return;
@@ -147,7 +152,7 @@ class AppDatabase extends _$AppDatabase {
       final entry = _englishVocabularySeed[i];
       final noteId = await into(notes).insert(
         NotesCompanion(
-          notetypeId: Value(vocabularyType.id),
+          notetypeId: Value(vocabularyTypeId),
           fieldsJson: Value(jsonEncode([entry.russian, entry.english])),
           tags: const Value('seed::english'),
         ),
@@ -155,7 +160,7 @@ class AppDatabase extends _$AppDatabase {
       await into(cards).insert(
         CardsCompanion(
           noteId: Value(noteId),
-          deckId: Value(englishDeck.id),
+          deckId: Value(englishDeckId),
           templateOrd: const Value(0),
           due: Value(i),
         ),
