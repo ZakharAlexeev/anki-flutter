@@ -1,9 +1,5 @@
 name: Build unsigned iOS IPA
 
-# Manual trigger, plus every push to main - the build has no code signing,
-# so it's safe to run for free on GitHub's hosted macOS runners. Signing
-# happens on-device when you sideload the .ipa with AltStore/AltServer using
-# your own (free) Apple ID - nothing here needs an Apple Developer account.
 on:
   workflow_dispatch: {}
   push:
@@ -18,6 +14,7 @@ jobs:
     defaults:
       run:
         working-directory: anki_flutter
+
     steps:
       - uses: actions/checkout@v4
 
@@ -28,13 +25,29 @@ jobs:
 
       - run: flutter pub get
 
-      - run: flutter build ios --release --no-codesign
+      - name: Prepare iOS project
+        run: flutter build ios --release --no-codesign --config-only
+
+      - name: Build Runner.app without code signing
+        run: |
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build/ios_unsigned \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            build
 
       - name: Package unsigned .ipa
         run: |
+          rm -rf Payload
           mkdir -p Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/
-          zip -r anki_flutter-unsigned.ipa Payload
+          cp -R build/ios_unsigned/Build/Products/Release-iphoneos/Runner.app Payload/
+          /usr/bin/zip -qry anki_flutter-unsigned.ipa Payload
 
       - uses: actions/upload-artifact@v4
         with:
