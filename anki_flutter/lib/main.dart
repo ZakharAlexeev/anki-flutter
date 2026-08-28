@@ -55,10 +55,11 @@ class AnkiFlutterApp extends StatelessWidget {
         Provider<StatsRepository>.value(value: stats),
       ],
       child: MaterialApp(
-        title: 'Anki Flutter',
+        title: 'Anki',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
-        themeMode: ThemeMode.light,
+        darkTheme: AppTheme.dark(),
+        themeMode: ThemeMode.system,
         home: const DeckListScreen(),
       ),
     );

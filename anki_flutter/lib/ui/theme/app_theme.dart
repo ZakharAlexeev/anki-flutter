@@ -1,33 +1,34 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-/// Shared visual tokens for the application.
+/// A restrained, reading-first visual system tuned for a phone screen.
 ///
-/// The light theme deliberately uses a cool neutral canvas, clean white
-/// surfaces and one vivid indigo accent. Semantic study colors stay separate
-/// so the reviewer remains instantly scannable.
+/// The palette is deliberately closer to paper, ink and iOS system blue than
+/// to the saturated purple/gradient language common in generated interfaces.
+/// Study outcomes keep their own semantic colours for instant recognition.
 class AppColors {
   const AppColors._();
 
-  static const accent = Color(0xFF5B5FEF);
-  static const accentStrong = Color(0xFF4548C9);
-  static const accentSoft = Color(0xFFEDEEFF);
+  static const accent = Color(0xFF245A9B);
+  static const accentStrong = Color(0xFF173E6F);
+  static const accentSoft = Color(0xFFE8F0F8);
 
-  static const again = Color(0xFFD85C62);
-  static const hard = Color(0xFFD49A36);
-  static const good = Color(0xFF2E9D72);
-  static const easy = Color(0xFF4384E6);
+  static const again = Color(0xFFB84E4E);
+  static const hard = Color(0xFFA06B1F);
+  static const good = Color(0xFF367A56);
+  static const easy = Color(0xFF356DAD);
 
-  static const lightBg = Color(0xFFF6F7FB);
-  static const lightSurface = Color(0xFFFFFFFF);
-  static const lightBorder = Color(0xFFE3E6EF);
-  static const lightText = Color(0xFF202534);
-  static const lightMuted = Color(0xFF737B8C);
+  static const lightBg = Color(0xFFF4F2ED);
+  static const lightSurface = Color(0xFFFEFDFB);
+  static const lightBorder = Color(0xFFDDD9D1);
+  static const lightText = Color(0xFF202326);
+  static const lightMuted = Color(0xFF6C716F);
 
-  static const darkBg = Color(0xFF171821);
-  static const darkSurface = Color(0xFF20222D);
-  static const darkBorder = Color(0xFF303341);
-  static const darkText = Color(0xFFF3F4F8);
-  static const darkMuted = Color(0xFFA0A5B2);
+  static const darkBg = Color(0xFF161817);
+  static const darkSurface = Color(0xFF202321);
+  static const darkBorder = Color(0xFF343835);
+  static const darkText = Color(0xFFF1F0EC);
+  static const darkMuted = Color(0xFFA5AAA6);
 }
 
 class AppSpacing {
@@ -40,8 +41,8 @@ class AppSpacing {
   static const xxl = 48.0;
 }
 
-const double kAppRadius = 20.0;
-const double kAppRadiusSmall = 14.0;
+const double kAppRadius = 16.0;
+const double kAppRadiusSmall = 12.0;
 
 class AppTheme {
   const AppTheme._();
@@ -70,31 +71,31 @@ class AppTheme {
 
     final textTheme = TextTheme(
       headlineSmall: TextStyle(
-        fontSize: 30,
+        fontSize: 28,
         fontWeight: FontWeight.w700,
-        letterSpacing: -0.7,
-        height: 1.15,
+        letterSpacing: -0.55,
+        height: 1.18,
         color: text,
       ),
       titleLarge: TextStyle(
-        fontSize: 22,
+        fontSize: 20,
         fontWeight: FontWeight.w700,
-        letterSpacing: -0.35,
+        letterSpacing: -0.25,
         color: text,
       ),
       titleMedium: TextStyle(
-        fontSize: 16,
+        fontSize: 17,
         fontWeight: FontWeight.w600,
-        letterSpacing: -0.1,
+        letterSpacing: -0.15,
         color: text,
       ),
-      bodyLarge: TextStyle(fontSize: 16, height: 1.55, color: text),
-      bodyMedium: TextStyle(fontSize: 14, height: 1.5, color: text),
-      bodySmall: TextStyle(fontSize: 12.5, height: 1.4, color: muted),
+      bodyLarge: TextStyle(fontSize: 17, height: 1.48, color: text),
+      bodyMedium: TextStyle(fontSize: 15, height: 1.45, color: text),
+      bodySmall: TextStyle(fontSize: 13, height: 1.38, color: muted),
       labelLarge: const TextStyle(
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: FontWeight.w600,
-        letterSpacing: 0.05,
+        letterSpacing: -0.05,
       ),
     );
 
@@ -106,7 +107,7 @@ class AppTheme {
       canvasColor: bg,
       textTheme: textTheme,
       visualDensity: VisualDensity.standard,
-      splashFactory: InkSparkle.splashFactory,
+      splashFactory: InkRipple.splashFactory,
       highlightColor: Colors.transparent,
       hoverColor: AppColors.accent.withValues(alpha: 0.045),
       focusColor: AppColors.accent.withValues(alpha: 0.08),
@@ -117,8 +118,8 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         foregroundColor: text,
-        centerTitle: false,
-        toolbarHeight: 72,
+        centerTitle: true,
+        toolbarHeight: 56,
         titleTextStyle: textTheme.titleLarge,
         iconTheme: IconThemeData(color: muted, size: 21),
         actionsIconTheme: IconThemeData(color: muted, size: 21),
@@ -126,8 +127,8 @@ class AppTheme {
       cardTheme: CardThemeData(
         color: surface,
         surfaceTintColor: Colors.transparent,
-        shadowColor: const Color(0xFF171C2F).withValues(alpha: isDark ? 0.28 : 0.07),
-        elevation: isDark ? 0 : 1.2,
+        shadowColor: Colors.transparent,
+        elevation: 0,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(kAppRadius),
@@ -137,7 +138,7 @@ class AppTheme {
       listTileTheme: ListTileThemeData(
         iconColor: muted,
         textColor: text,
-        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.xs),
+        contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kAppRadiusSmall)),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -170,7 +171,7 @@ class AppTheme {
           foregroundColor: Colors.white,
           disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.35),
           elevation: 0,
-          minimumSize: const Size(0, 48),
+          minimumSize: const Size(0, 50),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kAppRadiusSmall)),
           textStyle: textTheme.labelLarge,
@@ -181,7 +182,7 @@ class AppTheme {
           foregroundColor: text,
           backgroundColor: surface,
           side: BorderSide(color: border),
-          minimumSize: const Size(0, 48),
+          minimumSize: const Size(0, 50),
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kAppRadiusSmall)),
           textStyle: textTheme.labelLarge,
@@ -206,17 +207,17 @@ class AppTheme {
       floatingActionButtonTheme: FloatingActionButtonThemeData(
         backgroundColor: AppColors.accent,
         foregroundColor: Colors.white,
-        elevation: 4,
-        focusElevation: 4,
-        hoverElevation: 6,
-        highlightElevation: 3,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+          elevation: 1,
+          focusElevation: 1,
+          hoverElevation: 2,
+          highlightElevation: 0,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       ),
       popupMenuTheme: PopupMenuThemeData(
         color: surface,
         surfaceTintColor: Colors.transparent,
-        elevation: 8,
-        shadowColor: Colors.black.withValues(alpha: 0.10),
+        elevation: 4,
+        shadowColor: Colors.black.withValues(alpha: 0.08),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(kAppRadiusSmall),
           side: BorderSide(color: border),
@@ -227,7 +228,7 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         elevation: 10,
         shadowColor: Colors.black.withValues(alpha: 0.10),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         titleTextStyle: textTheme.titleLarge,
         contentTextStyle: textTheme.bodyMedium,
       ),
@@ -240,6 +241,12 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(kAppRadiusSmall)),
       ),
       progressIndicatorTheme: const ProgressIndicatorThemeData(color: AppColors.accent),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+        },
+      ),
       extensions: [
         AppSemanticColors(
           border: border,

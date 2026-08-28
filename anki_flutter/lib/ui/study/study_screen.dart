@@ -25,6 +25,7 @@ class _StudyScreenState extends State<StudyScreen> {
   bool _loading = true;
   bool _showAnswer = false;
   bool _answering = false;
+  int _answeredCount = 0;
   String? _error;
   RenderedCard? _rendered;
   String? _resolvedQuestionHtml;
@@ -55,6 +56,7 @@ class _StudyScreenState extends State<StudyScreen> {
         _queue = queue;
         _loading = false;
         _showAnswer = false;
+        _answeredCount = 0;
       });
       if (queue.isNotEmpty) await _renderCurrent();
     } catch (e) {
@@ -117,6 +119,7 @@ class _StudyScreenState extends State<StudyScreen> {
         _resolvedAnswerHtml = null;
         _previews = null;
         _answering = false;
+        _answeredCount += 1;
       });
       if (outcome.becameLeech && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -135,16 +138,7 @@ class _StudyScreenState extends State<StudyScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.deckName),
-        actions: [
-          if (_queue.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(right: AppSpacing.lg),
-              child: Center(
-                child: Text('${_queue.length}', style: Theme.of(context).textTheme.bodySmall),
-              ),
-            ),
-        ],
+        title: Text(widget.deckName, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
@@ -161,8 +155,38 @@ class _StudyScreenState extends State<StudyScreen> {
     final questionHtml = _resolvedQuestionHtml;
     final answerHtml = _resolvedAnswerHtml;
     final colors = context.appColors;
+    final sessionSize = _answeredCount + _queue.length;
+    final progress = sessionSize == 0 ? 0.0 : _answeredCount / sessionSize;
     return Column(
       children: [
+        Container(
+          color: colors.surface,
+          padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, 10),
+          child: SafeArea(
+            top: false,
+            bottom: false,
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Text('Сеанс повторения', style: Theme.of(context).textTheme.bodySmall),
+                    const Spacer(),
+                    Text('Осталось: ${_queue.length}', style: Theme.of(context).textTheme.bodySmall),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(2),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 3,
+                    backgroundColor: colors.border,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
         Expanded(
           child: rendered == null || questionHtml == null || answerHtml == null
               ? const Center(child: CircularProgressIndicator())
@@ -171,10 +195,11 @@ class _StudyScreenState extends State<StudyScreen> {
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 640),
                     child: SingleChildScrollView(
-                      padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, AppSpacing.xl),
+                      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.lg, AppSpacing.md, AppSpacing.xl),
                       child: Container(
                         width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xl),
+                        constraints: const BoxConstraints(minHeight: 280),
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.xxl),
                         decoration: BoxDecoration(
                           color: colors.surface,
                           borderRadius: BorderRadius.circular(kAppRadius),
@@ -193,15 +218,21 @@ class _StudyScreenState extends State<StudyScreen> {
                   ),
                 ),
         ),
-        SafeArea(
-          top: false,
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 640),
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.lg),
-                child: _showAnswer ? _buildAnswerButtons() : _buildShowAnswerButton(),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            border: Border(top: BorderSide(color: colors.border)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.md),
+                  child: _showAnswer ? _buildAnswerButtons() : _buildShowAnswerButton(),
+                ),
               ),
             ),
           ),
@@ -213,7 +244,7 @@ class _StudyScreenState extends State<StudyScreen> {
   Widget _buildShowAnswerButton() {
     return SizedBox(
       width: double.infinity,
-      height: 48,
+      height: 52,
       child: FilledButton(
         onPressed: () => setState(() => _showAnswer = true),
         child: const Text('Показать ответ'),
@@ -223,15 +254,25 @@ class _StudyScreenState extends State<StudyScreen> {
 
   Widget _buildAnswerButtons() {
     final previews = _previews;
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Expanded(child: _ratingButton(Rating.again, 'Снова', AppColors.again, previews)),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: _ratingButton(Rating.hard, 'Трудно', AppColors.hard, previews)),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: _ratingButton(Rating.good, 'Хорошо', AppColors.good, previews)),
-        const SizedBox(width: AppSpacing.sm),
-        Expanded(child: _ratingButton(Rating.easy, 'Легко', AppColors.easy, previews)),
+        Text('Насколько легко вспомнили?', style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 10),
+        GridView.count(
+          crossAxisCount: 2,
+          mainAxisSpacing: AppSpacing.sm,
+          crossAxisSpacing: AppSpacing.sm,
+          childAspectRatio: 2.65,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: [
+            _ratingButton(Rating.again, 'Снова', AppColors.again, previews),
+            _ratingButton(Rating.hard, 'Трудно', AppColors.hard, previews),
+            _ratingButton(Rating.good, 'Хорошо', AppColors.good, previews),
+            _ratingButton(Rating.easy, 'Легко', AppColors.easy, previews),
+          ],
+        ),
       ],
     );
   }
@@ -239,22 +280,21 @@ class _StudyScreenState extends State<StudyScreen> {
   Widget _ratingButton(Rating rating, String label, Color color, Map<Rating, CardSchedState>? previews) {
     final preview = previews?[rating];
     return Material(
-      color: color.withValues(alpha: 0.10),
+      color: color.withValues(alpha: 0.08),
       borderRadius: BorderRadius.circular(kAppRadiusSmall),
       child: InkWell(
         borderRadius: BorderRadius.circular(kAppRadiusSmall),
         onTap: _answering ? null : () => _answer(rating),
         child: Container(
-          height: 60,
           alignment: Alignment.center,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(kAppRadiusSmall),
-            border: Border.all(color: color.withValues(alpha: 0.35)),
+            border: Border.all(color: color.withValues(alpha: 0.28)),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 13)),
+              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 14)),
               if (preview != null) ...[
                 const SizedBox(height: 2),
                 Text(_intervalLabel(preview), style: TextStyle(color: color.withValues(alpha: 0.75), fontSize: 11)),
