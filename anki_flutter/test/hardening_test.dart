@@ -50,7 +50,7 @@ void main() {
       notetypes = NotetypeRepository(db);
       await notetypes.ensureSeeded();
       notes = NoteRepository(db, decks, notetypes);
-      defaultDeckId = (await db.select(db.decks).get()).single.id;
+      defaultDeckId = (await db.select(db.decks).get()).firstWhere((deck) => deck.name == 'Default').id;
     });
 
     tearDown(() => db.close());

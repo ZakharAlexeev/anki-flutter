@@ -41,13 +41,13 @@ void main() {
     await notetypes.ensureSeeded();
     final notes = NoteRepository(sourceDb, decks, notetypes);
 
-    final deck = (await sourceDb.select(sourceDb.decks).get()).single;
+    final deck = (await sourceDb.select(sourceDb.decks).get()).firstWhere((deck) => deck.name == 'Default');
     final basic = (await sourceDb.select(sourceDb.notetypes).get()).firstWhere((n) => n.name == 'Basic');
     await notes.createNote(notetypeId: basic.id, deckId: deck.id, fields: ['Capital of France?', 'Paris']);
 
     // Simulate a card that's been studied for a while: a mature review card
     // with a lapse in its past, plus one recorded review in the log.
-    final card = (await sourceDb.select(sourceDb.cards).get()).single;
+    final card = await (sourceDb.select(sourceDb.cards)..where((card) => card.deckId.equals(deck.id))).getSingle();
     await (sourceDb.update(sourceDb.cards)..where((c) => c.id.equals(card.id))).write(
       const CardsCompanion(
         queue: Value(CardQueue.review),
@@ -81,7 +81,10 @@ void main() {
     await destDb.ensureSeeded();
     await for (final _ in ApkgImporter(destDb).import(exportPath)) {}
 
-    final importedCards = await destDb.select(destDb.cards).get();
+    final importedDeck = (await destDb.select(destDb.decks).get()).firstWhere((deck) => deck.name == 'Default');
+    final importedCards = await (destDb.select(destDb.cards)
+          ..where((card) => card.deckId.equals(importedDeck.id)))
+        .get();
     expect(importedCards, hasLength(1));
     final imported = importedCards.single;
     expect(imported.queue, CardQueue.review);
@@ -90,7 +93,8 @@ void main() {
     expect(imported.reps, 6);
     expect(imported.lapses, 1);
 
-    final importedNotes = await destDb.select(destDb.notes).get();
+    final importedNoteIds = importedCards.map((card) => card.noteId).toSet();
+    final importedNotes = await (destDb.select(destDb.notes)..where((note) => note.id.isIn(importedNoteIds))).get();
     expect(importedNotes, hasLength(1));
     expect(importedNotes.single.fieldsJson, contains('Paris'));
 
@@ -108,7 +112,7 @@ void main() {
     final notetypes = NotetypeRepository(db);
     await notetypes.ensureSeeded();
     final notes = NoteRepository(db, decks, notetypes);
-    final deck = (await db.select(db.decks).get()).single;
+    final deck = (await db.select(db.decks).get()).firstWhere((deck) => deck.name == 'Default');
     final basic = (await db.select(db.notetypes).get()).firstWhere((notetype) => notetype.name == 'Basic');
 
     final mediaDir = Directory('${tempDir.path}/media');

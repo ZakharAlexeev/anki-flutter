@@ -34,7 +34,7 @@ void main() {
     notes = NoteRepository(db, decks, notetypes);
     study = StudyRepository(db);
 
-    final defaultDeck = (await db.select(db.decks).get()).single;
+    final defaultDeck = (await db.select(db.decks).get()).firstWhere((deck) => deck.name == 'Default');
     deckId = defaultDeck.id;
   });
 
@@ -89,7 +89,7 @@ void main() {
     expect(due, hasLength(1), reason: 'a 10-minute-away learning step is within the learn-ahead window');
     expect(due.single.queue, CardQueue.learning);
 
-    final afterFirstGood = (await db.select(db.cards).get()).single;
+    final afterFirstGood = await (db.select(db.cards)..where((card) => card.deckId.equals(deckId))).getSingle();
     expect(afterFirstGood.queue, CardQueue.learning);
     expect(afterFirstGood.stepIndex, 1);
     expect(afterFirstGood.reps, 1);
@@ -97,7 +97,7 @@ void main() {
     // Answer Good again to graduate it into the review queue.
     await study.answerCard(cardId: due.single.id, rating: Rating.good);
 
-    final graduated = (await db.select(db.cards).get()).single;
+    final graduated = await (db.select(db.cards)..where((card) => card.deckId.equals(deckId))).getSingle();
     expect(graduated.queue, CardQueue.review);
     expect(graduated.ivl, 1); // default graduating interval
     expect(graduated.reps, 2);
