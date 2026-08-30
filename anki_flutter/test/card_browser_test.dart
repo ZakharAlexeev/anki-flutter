@@ -54,8 +54,7 @@ void main() {
 
   testWidgets('lists both notes and search filters the list down', (tester) async {
     await notes.createNote(notetypeId: basicId, deckId: deckId, fields: ['Capital of France', 'Paris']);
-    final noteId =
-        await notes.createNote(notetypeId: basicId, deckId: deckId, fields: ['Capital of Japan', 'Tokyo']);
+    await notes.createNote(notetypeId: basicId, deckId: deckId, fields: ['Capital of Japan', 'Tokyo']);
 
     await tester.pumpWidget(wrap(CardBrowserScreen(deckId: deckId, deckName: 'Default')));
     await tester.pumpAndSettle();
@@ -70,7 +69,8 @@ void main() {
   });
 
   testWidgets('edits a field, suspends the card, then deletes the note', (tester) async {
-    await notes.createNote(notetypeId: basicId, deckId: deckId, fields: ['Capital of Japan', 'Tokyo']);
+    final noteId =
+        await notes.createNote(notetypeId: basicId, deckId: deckId, fields: ['Capital of Japan', 'Tokyo']);
 
     await tester.pumpWidget(wrap(CardBrowserScreen(deckId: deckId, deckName: 'Default')));
     await tester.pumpAndSettle();
