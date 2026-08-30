@@ -148,7 +148,6 @@ class StudyRepository {
     required int cardId,
     required Rating rating,
     DateTime? now,
-    Random? random,
     int timeTakenMs = 0,
   }) async {
     final n = now ?? DateTime.now();
@@ -166,7 +165,6 @@ class StudyRepository {
         rating: rating,
         now: n,
         today: t,
-        random: random ?? Random(),
       );
 
       await (_db.update(_db.cards)..where((c) => c.id.equals(cardId))).write(CardsCompanion(

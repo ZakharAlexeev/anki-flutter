@@ -1,5 +1,3 @@
-import 'dart:math';
-
 import 'package:anki_flutter/domain/scheduler/day_calendar.dart';
 import 'package:anki_flutter/domain/scheduler/models.dart';
 import 'package:anki_flutter/domain/scheduler/scheduler.dart';
@@ -57,7 +55,6 @@ void main() {
         rating: Rating.good,
         now: now.add(const Duration(minutes: 10)),
         today: today,
-        random: Random(1),
       ).state;
       expect(graduated.queue, CardQueue.review);
       expect(graduated.ivl, greaterThanOrEqualTo(1));
@@ -71,7 +68,6 @@ void main() {
         rating: Rating.easy,
         now: now,
         today: today,
-        random: Random(2),
       );
       expect(out.state.queue, CardQueue.review);
       expect(out.state.ivl, greaterThanOrEqualTo(1));

@@ -180,7 +180,7 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
             newPerDay: Value(newPerDay!),
             reviewsPerDay: Value(reviewsPerDay!),
           ));
-      await repository.updateDesiredRetention(widget.deckId, desiredRetentionPct! / 100);
+      await repository.updateDesiredRetention(widget.deckId, desiredRetentionPct / 100);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Настройки сохранены')));
       Navigator.of(context).pop();

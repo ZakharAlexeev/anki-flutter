@@ -1,4 +1,4 @@
-import 'dart:math';
+import 'dart:math' show max;
 
 import 'package:fsrs/fsrs.dart' as fsrs;
 
@@ -17,31 +17,20 @@ class Scheduler {
     required Rating rating,
     required DateTime now,
     required int today,
-    Random? random,
   }) {
     if (card.queue == CardQueue.suspended) {
       throw StateError('Cannot answer a suspended card.');
     }
 
     final nowUtc = now.toUtc();
-    final scheduler = random == null
-        ? fsrs.Scheduler(
-            parameters: config.fsrsParameters,
-            desiredRetention: config.desiredRetention,
-            learningSteps: _durations(config.learningStepsMin),
-            relearningSteps: _durations(config.relearningStepsMin),
-            maximumInterval: config.maximumIntervalDays,
-            enableFuzzing: true,
-          )
-        : fsrs.Scheduler.customRandom(
-            random,
-            parameters: config.fsrsParameters,
-            desiredRetention: config.desiredRetention,
-            learningSteps: _durations(config.learningStepsMin),
-            relearningSteps: _durations(config.relearningStepsMin),
-            maximumInterval: config.maximumIntervalDays,
-            enableFuzzing: true,
-          );
+    final scheduler = fsrs.Scheduler(
+      parameters: config.fsrsParameters,
+      desiredRetention: config.desiredRetention,
+      learningSteps: _durations(config.learningStepsMin),
+      relearningSteps: _durations(config.relearningStepsMin),
+      maximumInterval: config.maximumIntervalDays,
+      enableFuzzing: true,
+    );
 
     final reviewed = scheduler.reviewCard(
       _toFsrsCard(card, nowUtc),
