@@ -254,6 +254,11 @@ class _DeckTileState extends State<_DeckTile> {
     }
   }
 
+  void _refreshCounts() {
+    if (!mounted) return;
+    setState(() => _counts = context.read<StudyRepository>().counts(widget.deck.id));
+  }
+
   @override
   Widget build(BuildContext context) {
     final deck = widget.deck;
@@ -272,8 +277,11 @@ class _DeckTileState extends State<_DeckTile> {
           borderRadius: BorderRadius.circular(kAppRadius),
           child: InkWell(
             borderRadius: BorderRadius.circular(kAppRadius),
-            onTap: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => StudyScreen(deckId: deck.id, deckName: deck.name))),
+            onTap: () async {
+              await Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => StudyScreen(deckId: deck.id, deckName: deck.name)));
+              _refreshCounts();
+            },
             child: Container(
               padding: const EdgeInsets.fromLTRB(AppSpacing.md, 18, AppSpacing.sm, 18),
               decoration: BoxDecoration(

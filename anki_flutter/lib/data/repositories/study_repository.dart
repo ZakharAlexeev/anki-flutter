@@ -141,22 +141,24 @@ class StudyRepository {
     int timeTakenMs = 0,
   }) async {
     final n = now ?? DateTime.now();
-    final entry = await (_db.select(_db.cards)..where((c) => c.id.equals(cardId))).getSingle();
-    final cfgRow = await _configRowForDeck(entry.deckId);
-    final config = schedConfigFromRow(cfgRow);
-    final t = await today(n);
-    final nowSec = n.millisecondsSinceEpoch ~/ 1000;
+    return _db.transaction(() async {
+      // Read, calculate and write under the same serialized transaction. A
+      // second caller can no longer append a duplicate revlog entry based on
+      // scheduling state read before the first answer was committed.
+      final entry = await (_db.select(_db.cards)..where((c) => c.id.equals(cardId))).getSingle();
+      final cfgRow = await _configRowForDeck(entry.deckId);
+      final config = schedConfigFromRow(cfgRow);
+      final t = await today(n);
+      final nowSec = n.millisecondsSinceEpoch ~/ 1000;
+      final outcome = _scheduler.answerCard(
+        card: _stateFromEntry(entry),
+        config: config,
+        rating: rating,
+        now: n,
+        today: t,
+        random: random ?? Random(),
+      );
 
-    final outcome = _scheduler.answerCard(
-      card: _stateFromEntry(entry),
-      config: config,
-      rating: rating,
-      now: n,
-      today: t,
-      random: random ?? Random(),
-    );
-
-    await _db.transaction(() async {
       await (_db.update(_db.cards)..where((c) => c.id.equals(cardId))).write(CardsCompanion(
         queue: Value(outcome.state.queue),
         due: Value(outcome.state.due),
@@ -193,9 +195,8 @@ class StudyRepository {
         await (_db.update(_db.decks)..where((d) => d.id.equals(entry.deckId)))
             .write(DecksCompanion(reviewsShownToday: Value(shown + 1), reviewsShownDay: Value(t)));
       }
+      return outcome;
     });
-
-    return outcome;
   }
 
   CardSchedState _stateFromEntry(CardEntry entry) => CardSchedState(

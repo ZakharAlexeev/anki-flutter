@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/db/database.dart';
@@ -86,6 +87,7 @@ class _StudyScreenState extends State<StudyScreen> {
       tags: noteRow.tags,
       deckName: widget.deckName,
       notetypeName: notetype?.name ?? '',
+      cardOrd: card.templateOrd,
     );
     final previews = await _study.previewOutcomes(card.id);
     final resolvedQuestion = await _media.resolve(rendered.questionHtml);
@@ -133,8 +135,22 @@ class _StudyScreenState extends State<StudyScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.space): _handleSpace,
+        const SingleActivator(LogicalKeyboardKey.digit1): () => _handleRatingShortcut(Rating.again),
+        const SingleActivator(LogicalKeyboardKey.digit2): () => _handleRatingShortcut(Rating.hard),
+        const SingleActivator(LogicalKeyboardKey.digit3): () => _handleRatingShortcut(Rating.good),
+        const SingleActivator(LogicalKeyboardKey.digit4): () => _handleRatingShortcut(Rating.easy),
+        const SingleActivator(LogicalKeyboardKey.numpad1): () => _handleRatingShortcut(Rating.again),
+        const SingleActivator(LogicalKeyboardKey.numpad2): () => _handleRatingShortcut(Rating.hard),
+        const SingleActivator(LogicalKeyboardKey.numpad3): () => _handleRatingShortcut(Rating.good),
+        const SingleActivator(LogicalKeyboardKey.numpad4): () => _handleRatingShortcut(Rating.easy),
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          appBar: AppBar(
         title: Text(widget.deckName),
         actions: [
           if (_queue.isNotEmpty)
@@ -157,14 +173,26 @@ class _StudyScreenState extends State<StudyScreen> {
             ),
         ],
       ),
-      body: _loading
+          body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
               ? _ErrorState(message: _error!, onRetry: _loadQueue)
               : _queue.isEmpty
                   ? const _AllDoneState()
                   : _buildStudyBody(),
+        ),
+      ),
     );
+  }
+
+  void _handleSpace() {
+    if (_loading || _answering || _queue.isEmpty || _rendered == null || _showAnswer) return;
+    setState(() => _showAnswer = true);
+  }
+
+  void _handleRatingShortcut(Rating rating) {
+    if (_loading || _answering || _queue.isEmpty || !_showAnswer) return;
+    _answer(rating);
   }
 
   Widget _buildStudyBody() {
@@ -233,7 +261,14 @@ class _StudyScreenState extends State<StudyScreen> {
       height: 48,
       child: FilledButton(
         onPressed: () => setState(() => _showAnswer = true),
-        child: const Text('Показать ответ'),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Показать ответ'),
+            SizedBox(width: AppSpacing.sm),
+            Text('Space'),
+          ],
+        ),
       ),
     );
   }
@@ -249,17 +284,23 @@ class _StudyScreenState extends State<StudyScreen> {
           spacing: AppSpacing.sm,
           runSpacing: AppSpacing.sm,
           children: [
-            SizedBox(width: itemWidth, child: _ratingButton(Rating.again, 'Снова', AppColors.again, previews)),
-            SizedBox(width: itemWidth, child: _ratingButton(Rating.hard, 'Трудно', AppColors.hard, previews)),
-            SizedBox(width: itemWidth, child: _ratingButton(Rating.good, 'Хорошо', AppColors.good, previews)),
-            SizedBox(width: itemWidth, child: _ratingButton(Rating.easy, 'Легко', AppColors.easy, previews)),
+            SizedBox(width: itemWidth, child: _ratingButton(Rating.again, 'Снова', '1', AppColors.again, previews)),
+            SizedBox(width: itemWidth, child: _ratingButton(Rating.hard, 'Трудно', '2', AppColors.hard, previews)),
+            SizedBox(width: itemWidth, child: _ratingButton(Rating.good, 'Хорошо', '3', AppColors.good, previews)),
+            SizedBox(width: itemWidth, child: _ratingButton(Rating.easy, 'Легко', '4', AppColors.easy, previews)),
           ],
         );
       },
     );
   }
 
-  Widget _ratingButton(Rating rating, String label, Color color, Map<Rating, CardSchedState>? previews) {
+  Widget _ratingButton(
+    Rating rating,
+    String label,
+    String shortcut,
+    Color color,
+    Map<Rating, CardSchedState>? previews,
+  ) {
     final preview = previews?[rating];
     return Material(
       color: context.appColors.surface,
@@ -277,7 +318,14 @@ class _StudyScreenState extends State<StudyScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 13)),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 13)),
+                  const SizedBox(width: 6),
+                  Text(shortcut, style: TextStyle(color: color.withValues(alpha: 0.72), fontSize: 11)),
+                ],
+              ),
               if (preview != null) ...[
                 const SizedBox(height: 2),
                 Text(_intervalLabel(preview), style: TextStyle(color: color.withValues(alpha: 0.75), fontSize: 11)),

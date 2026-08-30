@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:anki_flutter/data/db/database.dart';
@@ -6,6 +7,7 @@ import 'package:anki_flutter/data/import/apkg_importer.dart';
 import 'package:anki_flutter/data/repositories/deck_repository.dart';
 import 'package:anki_flutter/data/repositories/note_repository.dart';
 import 'package:anki_flutter/data/repositories/notetype_repository.dart';
+import 'package:archive/archive.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/services.dart';
@@ -97,5 +99,35 @@ void main() {
     expect(importedRevlog.single.ivlAfter, 47);
 
     await destDb.close();
+  });
+
+  test('export never packages a media reference outside the app media directory', () async {
+    final db = AppDatabase.forTesting(NativeDatabase.memory());
+    await db.ensureSeeded();
+    final decks = DeckRepository(db);
+    final notetypes = NotetypeRepository(db);
+    await notetypes.ensureSeeded();
+    final notes = NoteRepository(db, decks, notetypes);
+    final deck = (await db.select(db.decks).get()).single;
+    final basic = (await db.select(db.notetypes).get()).firstWhere((notetype) => notetype.name == 'Basic');
+
+    final mediaDir = Directory('${tempDir.path}/media');
+    await mediaDir.create();
+    await File('${tempDir.path}/private.txt').writeAsString('must not be exported');
+    await notes.createNote(
+      notetypeId: basic.id,
+      deckId: deck.id,
+      fields: ['<img src="../private.txt">', 'Answer'],
+    );
+
+    final exportPath = '${tempDir.path}/safe_export.apkg';
+    await for (final _ in ApkgExporter(db).exportDecks([deck.id], exportPath)) {}
+    final archive = ZipDecoder().decodeBytes(await File(exportPath).readAsBytes());
+    final mediaEntry = archive.files.firstWhere((file) => file.name == 'media');
+    final mediaIndex = jsonDecode(utf8.decode(mediaEntry.content as List<int>)) as Map<String, dynamic>;
+    expect(mediaIndex, isEmpty);
+    expect(archive.files.map((file) => file.name), isNot(contains('private.txt')));
+
+    await db.close();
   });
 }

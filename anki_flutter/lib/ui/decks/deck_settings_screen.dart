@@ -100,7 +100,7 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
   bool _validSteps(String csv) {
     final parts = csv.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
     if (parts.isEmpty) return true; // empty is valid: graduates immediately
-    return parts.every((s) => (num.tryParse(s) ?? -1) > 0);
+    return parts.every((s) => (int.tryParse(s) ?? -1) > 0);
   }
 
   Future<void> _save() async {
@@ -149,7 +149,7 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
 
     setState(() => _saving = true);
     try {
-      await context.read<DeckRepository>().updateDeckConfig(DeckConfigsCompanion(
+      await context.read<DeckRepository>().updateDeckConfig(widget.deckId, DeckConfigsCompanion(
             id: Value(config.id),
             learningStepsMin: Value(_learningSteps.text.trim()),
             relearningStepsMin: Value(_relearningSteps.text.trim()),
@@ -250,7 +250,7 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
         padding: const EdgeInsets.only(bottom: AppSpacing.md),
         child: TextField(
           controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: TextInputType.number,
           decoration: InputDecoration(labelText: label),
         ),
       );
