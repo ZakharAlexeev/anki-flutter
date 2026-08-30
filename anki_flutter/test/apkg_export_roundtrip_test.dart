@@ -121,7 +121,7 @@ void main() {
     await notes.createNote(
       notetypeId: basic.id,
       deckId: deck.id,
-      fields: ['<img src="../private.txt">', 'Answer'],
+      fields: ['Secret attachment <img src="../private.txt">', 'Answer'],
     );
 
     final exportPath = '${tempDir.path}/safe_export.apkg';
