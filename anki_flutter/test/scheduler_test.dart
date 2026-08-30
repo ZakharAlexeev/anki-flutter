@@ -83,7 +83,10 @@ void main() {
         now: now,
         today: today,
       );
-      expect(out.state.due, now.add(const Duration(minutes: 5)).millisecondsSinceEpoch ~/ 1000);
+      final delay = out.state.due - now.millisecondsSinceEpoch ~/ 1000;
+      // FSRS keeps Anki's midpoint semantics while rounding the step to its
+      // scheduler granularity (the default 1/10 minute steps yield 5–6 min).
+      expect(delay, inInclusiveRange(5 * 60, 6 * 60));
     });
   });
 
