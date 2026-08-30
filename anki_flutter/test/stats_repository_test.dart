@@ -30,11 +30,11 @@ void main() {
     final notes = NoteRepository(db, decks, notetypes);
     stats = StatsRepository(db);
 
-    final deck = (await db.select(db.decks).get()).single;
+    final deck = (await db.select(db.decks).get()).firstWhere((deck) => deck.name == 'Default');
     deckId = deck.id;
     final basic = (await db.select(db.notetypes).get()).firstWhere((n) => n.name == 'Basic');
     await notes.createNote(notetypeId: basic.id, deckId: deckId, fields: ['Q', 'A']);
-    final seedCard = (await db.select(db.cards).get()).single;
+    final seedCard = await (db.select(db.cards)..where((card) => card.deckId.equals(deckId))).getSingle();
     noteId = seedCard.noteId;
 
     // Noon avoids any ambiguity with the default 4am rollover hour.
@@ -69,7 +69,7 @@ void main() {
       await addCard(queue: CardQueue.review, ivl: 365);
       await addCard(queue: CardQueue.review, ivl: 366);
 
-      final result = await stats.load(now: now);
+      final result = await stats.load(deckId: deckId, now: now);
       final byLabel = {for (final b in result.intervalHistogram) b.label: b.count};
       expect(byLabel['0-1д'], 1);
       expect(byLabel['2-3д'], 1);
@@ -80,7 +80,7 @@ void main() {
     test('non-review cards are excluded', () async {
       await addCard(queue: CardQueue.newCard, ivl: 0);
       await addCard(queue: CardQueue.learning, ivl: 0);
-      final result = await stats.load(now: now);
+      final result = await stats.load(deckId: deckId, now: now);
       expect(result.intervalHistogram.every((b) => b.count == 0), isTrue);
     });
   });
@@ -92,7 +92,7 @@ void main() {
       await addCard(queue: CardQueue.review, due: today + 30); // one day past the 30-day window
       await addCard(queue: CardQueue.review, due: today - 1); // overdue, not a forecast entry
 
-      final result = await stats.load(now: now);
+      final result = await stats.load(deckId: deckId, now: now);
       expect(result.forecast, hasLength(30));
       final byOffset = {for (final d in result.forecast) d.dayOffset: d.count};
       expect(byOffset[0], 1);
@@ -104,7 +104,7 @@ void main() {
   group('review history', () {
     test('29 days back is included; 30 days back and future reviews are not', () async {
       await addCard(queue: CardQueue.review, ivl: 5);
-      final card = (await db.select(db.cards).get()).single;
+      final card = await (db.select(db.cards)..where((entry) => entry.deckId.equals(deckId))).getSingle();
 
       Future<void> logAt(DateTime when) => db.into(db.revLog).insert(RevLogCompanion.insert(
             cardId: card.id,
@@ -120,7 +120,7 @@ void main() {
       await logAt(dayStart(today - 30, createdAt, rolloverHour: 4));
       await logAt(dayStart(today + 1, createdAt, rolloverHour: 4));
 
-      final result = await stats.load(now: now);
+      final result = await stats.load(deckId: deckId, now: now);
       expect(result.reviewHistory, hasLength(30));
       final byOffset = {for (final d in result.reviewHistory) d.dayOffset: d.count};
       expect(byOffset[0], 1);
@@ -132,7 +132,7 @@ void main() {
   group('today stats', () {
     test('counts only reviews within the rollover window and computes accuracy', () async {
       await addCard(queue: CardQueue.review, ivl: 5);
-      final card = (await db.select(db.cards).get()).single;
+      final card = await (db.select(db.cards)..where((entry) => entry.deckId.equals(deckId))).getSingle();
       final todayStart = dayStart(today, createdAt, rolloverHour: 4);
 
       await db.into(db.revLog).insert(RevLogCompanion.insert(
@@ -162,7 +162,7 @@ void main() {
             easeAfter: 2500,
           ));
 
-      final result = await stats.load(now: now);
+      final result = await stats.load(deckId: deckId, now: now);
       expect(result.today.reviewCount, 2);
       expect(result.today.againCount, 1);
       expect(result.today.accuracyPct, 50);
@@ -174,8 +174,16 @@ void main() {
     test("21-day interval is Anki's mature threshold, 20 is not", () async {
       await addCard(queue: CardQueue.review, ivl: 21);
       await addCard(queue: CardQueue.review, ivl: 20);
-      final result = await stats.load(now: now);
+      final result = await stats.load(deckId: deckId, now: now);
       expect(result.matureCount, 1);
     });
+  });
+
+  test('ease histogram reports Anki permille values as percentages', () async {
+    await addCard(queue: CardQueue.review, ivl: 10, ease: 2500);
+    final result = await stats.load(deckId: deckId, now: now);
+    expect(result.easeHistogram, hasLength(1));
+    expect(result.easeHistogram.single.label, '250%');
+    expect(result.easeHistogram.single.count, 1);
   });
 }

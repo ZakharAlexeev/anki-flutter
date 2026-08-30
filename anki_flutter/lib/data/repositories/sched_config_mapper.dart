@@ -5,7 +5,7 @@ import '../db/database.dart';
 /// [DeckSchedConfig], and back for the small set of fields the editor lets
 /// the user change. Percentages are stored as integers (e.g. 130 = 1.3x) so
 /// the DB stays free of floating point rounding surprises.
-DeckSchedConfig schedConfigFromRow(DeckConfig row) {
+DeckSchedConfig schedConfigFromRow(DeckConfig row, {double desiredRetention = 0.9}) {
   return DeckSchedConfig(
     learningStepsMin: _parseSteps(row.learningStepsMin),
     relearningStepsMin: _parseSteps(row.relearningStepsMin),
@@ -19,6 +19,7 @@ DeckSchedConfig schedConfigFromRow(DeckConfig row) {
     leechThreshold: row.leechThreshold,
     maximumIntervalDays: row.maximumIntervalDays,
     minEase: row.minEase,
+    desiredRetention: desiredRetention,
   );
 }
 

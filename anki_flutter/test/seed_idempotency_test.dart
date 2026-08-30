@@ -28,19 +28,21 @@ void main() {
 
     final notetypeRows = await db.select(db.notetypes).get();
     final deckConfigRowsAfterSeeding = await db.select(db.deckConfigs).get();
-    expect(await db.select(db.decks).get(), hasLength(1), reason: 'ensureSeeded must not create a second "Default" deck');
-    expect(notetypeRows, hasLength(2), reason: 'ensureSeeded must not duplicate the seeded note types');
+    final deckRows = await db.select(db.decks).get();
+    expect(deckRows.where((deck) => deck.name == 'Default'), hasLength(1));
+    expect(deckRows.where((deck) => deck.name == 'Английский'), hasLength(1));
+    expect(notetypeRows, hasLength(3), reason: 'ensureSeeded must not duplicate the seeded note types');
     expect(deckConfigRowsAfterSeeding, hasLength(1), reason: 'ensureSeeded must not duplicate the default deck config');
 
     // DeckRepository's own default-config lookup has the same "does this
     // table already have something" shape - exercise it repeatedly too, and
-    // confirm it keeps reusing the existing config rather than crashing or
-    // minting a new one each time.
+    // confirm it remains stable while each new deck receives an independent
+    // copy of the defaults.
     for (var i = 0; i < 3; i++) {
       await decks.createDeck('Extra $i');
     }
 
-    expect(await db.select(db.decks).get(), hasLength(4)); // seeded "Default" + 3 extra
-    expect(await db.select(db.deckConfigs).get(), hasLength(1), reason: 'createDeck must reuse the existing default config');
+    expect(await db.select(db.decks).get(), hasLength(5)); // Default + English + 3 extra
+    expect(await db.select(db.deckConfigs).get(), hasLength(4));
   });
 }

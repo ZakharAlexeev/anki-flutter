@@ -30,7 +30,7 @@ void main() {
     notes = NoteRepository(db, decks, notetypes);
     study = StudyRepository(db);
 
-    final defaultDeck = (await db.select(db.decks).get()).single;
+    final defaultDeck = (await db.select(db.decks).get()).firstWhere((deck) => deck.name == 'Default');
     deckId = defaultDeck.id;
     basicId = (await db.select(db.notetypes).get()).firstWhere((n) => n.name == 'Basic').id;
   });
@@ -69,7 +69,8 @@ void main() {
   });
 
   testWidgets('edits a field, suspends the card, then deletes the note', (tester) async {
-    await notes.createNote(notetypeId: basicId, deckId: deckId, fields: ['Capital of Japan', 'Tokyo']);
+    final noteId =
+        await notes.createNote(notetypeId: basicId, deckId: deckId, fields: ['Capital of Japan', 'Tokyo']);
 
     await tester.pumpWidget(wrap(CardBrowserScreen(deckId: deckId, deckName: 'Default')));
     await tester.pumpAndSettle();
@@ -84,19 +85,19 @@ void main() {
     await tester.tap(find.text('Сохранить'));
     await tester.pumpAndSettle();
 
-    var note = (await db.select(db.notes).get()).single;
+    var note = await (db.select(db.notes)..where((note) => note.id.equals(noteId))).getSingle();
     expect(notes.decodeFields(note.fieldsJson)[1], 'Tokyo (東京)');
 
     // Suspend the card via the row action.
     await tester.tap(find.byTooltip('Приостановить'));
     await tester.pumpAndSettle();
-    var card = (await db.select(db.cards).get()).single;
+    var card = await (db.select(db.cards)..where((card) => card.noteId.equals(noteId))).getSingle();
     expect(card.queue, CardQueue.suspended);
 
     // The tooltip flips once suspended, confirming the toggle round-trips.
     await tester.tap(find.byTooltip('Возобновить'));
     await tester.pumpAndSettle();
-    card = (await db.select(db.cards).get()).single;
+    card = await (db.select(db.cards)..where((card) => card.noteId.equals(noteId))).getSingle();
     expect(card.queue, isNot(CardQueue.suspended));
 
     // Delete the note entirely.
@@ -106,6 +107,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Capital of Japan'), findsNothing);
-    expect(await db.select(db.notes).get(), isEmpty);
+    expect(await (db.select(db.notes)..where((note) => note.id.equals(noteId))).get(), isEmpty);
   });
 }

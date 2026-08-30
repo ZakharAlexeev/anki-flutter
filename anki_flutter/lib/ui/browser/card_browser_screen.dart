@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -23,40 +25,58 @@ class CardBrowserScreen extends StatefulWidget {
 }
 
 class _CardBrowserScreenState extends State<CardBrowserScreen> {
+  static const _pageSize = 100;
+
   List<(CardEntry, Note)>? _rows;
   final _search = TextEditingController();
-  String _query = '';
+  Timer? _searchDebounce;
+  bool _hasMore = false;
+  bool _loadingMore = false;
 
   @override
   void initState() {
     super.initState();
     _load();
-    _search.addListener(() => setState(() => _query = _search.text.trim().toLowerCase()));
+    _search.addListener(_scheduleSearch);
   }
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _search.dispose();
     super.dispose();
   }
 
-  Future<void> _load() async {
-    final rows = await context.read<NoteRepository>().cardsWithNotesForDeck(widget.deckId);
+  void _scheduleSearch() {
+    _searchDebounce?.cancel();
+    _searchDebounce = Timer(const Duration(milliseconds: 250), () => _load());
+  }
+
+  Future<void> _load({bool append = false}) async {
+    if (append) {
+      if (_loadingMore || !_hasMore) return;
+      setState(() => _loadingMore = true);
+    } else {
+      setState(() => _rows = null);
+    }
+    final currentRows = append ? (_rows ?? const <(CardEntry, Note)>[]) : const <(CardEntry, Note)>[];
+    final page = await context.read<NoteRepository>().cardBrowserPage(
+          deckId: widget.deckId,
+          limit: _pageSize,
+          offset: currentRows.length,
+          query: _search.text,
+        );
     if (!mounted) return;
-    setState(() => _rows = rows);
+    setState(() {
+      _rows = append ? [...currentRows, ...page.rows] : page.rows;
+      _hasMore = page.hasMore;
+      _loadingMore = false;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final rows = _rows;
-    final notes = context.read<NoteRepository>();
-    final filtered = rows
-        ?.where((r) {
-          if (_query.isEmpty) return true;
-          final fields = notes.decodeFields(r.$2.fieldsJson);
-          return fields.any((f) => f.toLowerCase().contains(_query)) || r.$2.tags.toLowerCase().contains(_query);
-        })
-        .toList();
 
     return Scaffold(
       appBar: AppBar(
@@ -77,10 +97,10 @@ class _CardBrowserScreenState extends State<CardBrowserScreen> {
       ),
       body: rows == null
           ? const Center(child: CircularProgressIndicator())
-          : filtered!.isEmpty
+          : rows.isEmpty
               ? Center(
                   child: Text(
-                    rows.isEmpty ? 'В этой колоде пока нет карточек' : 'Ничего не найдено',
+                    _search.text.trim().isEmpty ? 'В этой колоде пока нет карточек' : 'Ничего не найдено',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
                 )
@@ -90,9 +110,8 @@ class _CardBrowserScreenState extends State<CardBrowserScreen> {
                     constraints: const BoxConstraints(maxWidth: 760),
                     child: ListView.builder(
                       padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
-                      itemCount: filtered.length + 1,
+                      itemCount: rows.length + 1 + (_hasMore ? 1 : 0),
                       itemBuilder: (context, i) {
-                        final visibleRows = filtered;
                         if (i == 0) {
                           return Padding(
                             padding: const EdgeInsets.only(bottom: AppSpacing.sm),
@@ -100,12 +119,26 @@ class _CardBrowserScreenState extends State<CardBrowserScreen> {
                               children: [
                                 Text('КАРТОЧКИ', style: Theme.of(context).textTheme.labelSmall),
                                 const Spacer(),
-                                Text('${visibleRows.length}', style: Theme.of(context).textTheme.bodySmall),
+                                Text(
+                                  _hasMore ? '${rows.length}+' : '${rows.length}',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
                               ],
                             ),
                           );
                         }
-                        final row = visibleRows[i - 1];
+                        if (i > rows.length) {
+                          return Padding(
+                            padding: const EdgeInsets.only(top: AppSpacing.sm),
+                            child: Center(
+                              child: OutlinedButton(
+                                onPressed: _loadingMore ? null : () => _load(append: true),
+                                child: Text(_loadingMore ? 'Загрузка…' : 'Показать ещё'),
+                              ),
+                            ),
+                          );
+                        }
+                        final row = rows[i - 1];
                         return Padding(
                           padding: const EdgeInsets.only(bottom: AppSpacing.sm),
                           child: _CardRow(card: row.$1, note: row.$2, onChanged: _load),
@@ -231,8 +264,19 @@ class _CardRow extends StatelessWidget {
 
     if (save == true) {
       final newFields = List<String>.generate(fieldDefs.length, (i) => controllers[i].text);
-      await notes.updateNoteFields(note.id, newFields, tags: tagsController.text.trim());
-      onChanged();
+      try {
+        await notes.updateNoteFields(
+          note.id,
+          newFields,
+          tags: tagsController.text.trim(),
+          preferredDeckId: card.deckId,
+        );
+        onChanged();
+      } on Object catch (error) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось сохранить: $error')));
+        }
+      }
     }
     // Not disposed here: the dialog route's closing transition can still be
     // animating (and rebuilding the TextFields bound to these controllers)

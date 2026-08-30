@@ -28,7 +28,7 @@ void main() {
     notes = NoteRepository(db, decks, notetypes);
     study = StudyRepository(db);
 
-    final deck = (await db.select(db.decks).get()).single;
+    final deck = (await db.select(db.decks).get()).firstWhere((deck) => deck.name == 'Default');
     deckId = deck.id;
   });
 

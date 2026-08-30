@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -33,78 +34,109 @@ Future<void> exportDecksToFile(
   final tempPath = p.join(tempDir.path, 'export_${DateTime.now().microsecondsSinceEpoch}.apkg');
   if (!context.mounted) return;
 
-  ExportProgress? progress;
   String? error;
 
-  await showDialog<void>(
-    context: context,
-    barrierDismissible: false,
-    builder: (dialogContext) {
-      return StatefulBuilder(
-        builder: (dialogContext, setState) {
-          if (progress == null && error == null) {
-            exporter.exportDecks(deckIds, tempPath).listen(
-              (p) => setState(() => progress = p),
-              onDone: () {
-                Future.delayed(const Duration(milliseconds: 200), () {
-                  if (dialogContext.mounted) Navigator.of(dialogContext).pop();
-                });
-              },
-              onError: (Object e) => setState(() => error = e.toString()),
-            );
-          }
+  final tempFile = File(tempPath);
+  try {
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => _ExportProgressDialog(
+        stream: exporter.exportDecks(deckIds, tempPath),
+        onError: (value) => error = value,
+      ),
+    );
 
-          final colors = dialogContext.appColors;
-          return AlertDialog(
-            title: const Text('Экспорт .apkg'),
-            content: SizedBox(
-              width: 340,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (error == null) ...[
-                    const LinearProgressIndicator(),
-                    const SizedBox(height: AppSpacing.md),
-                    Text(progress?.phase ?? 'Подготовка…', style: Theme.of(dialogContext).textTheme.bodyMedium),
-                  ] else
-                    Text(error!, style: TextStyle(color: colors.muted)),
-                ],
-              ),
-            ),
-            actions: error == null
-                ? null
-                : [
-                    TextButton(onPressed: () => Navigator.of(dialogContext).pop(), child: const Text('Закрыть')),
-                  ],
-          );
-        },
-      );
-    },
-  );
+    if (!context.mounted) return;
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка экспорта: $error')));
+      return;
+    }
+    if (!await tempFile.exists()) return;
+    final bytes = await tempFile.readAsBytes();
+    if (!context.mounted) return;
 
-  if (!context.mounted) return;
-  if (error != null) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка экспорта: $error')));
-    return;
+    final savedPath = await FilePicker.saveFile(
+      dialogTitle: 'Экспорт колоды',
+      fileName: '$suggestedFileName.apkg',
+      type: FileType.custom,
+      allowedExtensions: ['apkg'],
+      bytes: bytes,
+    );
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(savedPath != null ? 'Экспорт завершён' : 'Экспорт отменён')),
+    );
+  } finally {
+    if (await tempFile.exists()) await tempFile.delete();
+  }
+}
+
+class _ExportProgressDialog extends StatefulWidget {
+  const _ExportProgressDialog({required this.stream, required this.onError});
+
+  final Stream<ExportProgress> stream;
+  final ValueChanged<String> onError;
+
+  @override
+  State<_ExportProgressDialog> createState() => _ExportProgressDialogState();
+}
+
+class _ExportProgressDialogState extends State<_ExportProgressDialog> {
+  StreamSubscription<ExportProgress>? _subscription;
+  ExportProgress? _progress;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscription = widget.stream.listen(
+      (progress) {
+        if (mounted) setState(() => _progress = progress);
+      },
+      onDone: () {
+        Future<void>.delayed(const Duration(milliseconds: 200), () {
+          if (mounted) Navigator.of(context).pop();
+        });
+      },
+      onError: (Object error) {
+        final message = error.toString();
+        widget.onError(message);
+        if (mounted) setState(() => _error = message);
+      },
+    );
   }
 
-  final tempFile = File(tempPath);
-  if (!await tempFile.exists()) return;
-  final bytes = await tempFile.readAsBytes();
-  await tempFile.delete();
-  if (!context.mounted) return;
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
 
-  final savedPath = await FilePicker.saveFile(
-    dialogTitle: 'Экспорт колоды',
-    fileName: '$suggestedFileName.apkg',
-    type: FileType.custom,
-    allowedExtensions: ['apkg'],
-    bytes: bytes,
-  );
-
-  if (!context.mounted) return;
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(content: Text(savedPath != null ? 'Экспорт завершён' : 'Экспорт отменён')),
-  );
+  @override
+  Widget build(BuildContext context) {
+    final error = _error;
+    return AlertDialog(
+      title: const Text('Экспорт .apkg'),
+      content: SizedBox(
+        width: 340,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (error == null) ...[
+              const LinearProgressIndicator(),
+              const SizedBox(height: AppSpacing.md),
+              Text(_progress?.phase ?? 'Подготовка…', style: Theme.of(context).textTheme.bodyMedium),
+            ] else
+              Text(error, style: TextStyle(color: context.appColors.muted)),
+          ],
+        ),
+      ),
+      actions: error == null
+          ? null
+          : [TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Закрыть'))],
+    );
+  }
 }

@@ -11,15 +11,25 @@ class DeckRepository {
 
   Future<Deck> deckById(int id) => (_db.select(_db.decks)..where((d) => d.id.equals(id))).getSingle();
 
-  Future<int> _defaultDeckConfigId() async {
+  Future<DeckConfig> _defaultDeckConfig() async {
     final existing = await (_db.select(_db.deckConfigs)..limit(1)).getSingleOrNull();
-    if (existing != null) return existing.id;
-    return _db.into(_db.deckConfigs).insert(const DeckConfigsCompanion(name: Value('Default')));
+    if (existing != null) return existing;
+    final id = await _db.into(_db.deckConfigs).insert(const DeckConfigsCompanion(name: Value('Default')));
+    return (_db.select(_db.deckConfigs)..where((c) => c.id.equals(id))).getSingle();
   }
 
   Future<int> createDeck(String name, {int? deckConfigId}) async {
-    final configId = deckConfigId ?? await _defaultDeckConfigId();
-    return _db.into(_db.decks).insert(DecksCompanion(name: Value(name), deckConfigId: Value(configId)));
+    return _db.transaction(() async {
+      final int configId;
+      if (deckConfigId != null) {
+        configId = deckConfigId;
+      } else {
+        final source = await _defaultDeckConfig();
+        configId = await _db.into(_db.deckConfigs).insert(_copyConfig(source, name: name));
+        await _copyFsrsOptions(source.id, configId);
+      }
+      return _db.into(_db.decks).insert(DecksCompanion(name: Value(name), deckConfigId: Value(configId)));
+    });
   }
 
   Future<void> renameDeck(int id, String newName) =>
@@ -30,6 +40,7 @@ class DeckRepository {
   /// Anki's own deck-delete behaviour.
   Future<void> deleteDeck(int id) async {
     await _db.transaction(() async {
+      final deck = await deckById(id);
       final doomedCards = await (_db.select(_db.cards)..where((c) => c.deckId.equals(id))).get();
       final orphanCandidates = doomedCards.map((c) => c.noteId).toSet();
 
@@ -38,6 +49,11 @@ class DeckRepository {
       }
       await (_db.delete(_db.cards)..where((c) => c.deckId.equals(id))).go();
       await (_db.delete(_db.decks)..where((d) => d.id.equals(id))).go();
+
+      final configUsers = await (_db.select(_db.decks)..where((d) => d.deckConfigId.equals(deck.deckConfigId))).get();
+      if (configUsers.isEmpty) {
+        await (_db.delete(_db.deckConfigs)..where((c) => c.id.equals(deck.deckConfigId))).go();
+      }
 
       for (final noteId in orphanCandidates) {
         final remaining = await (_db.select(_db.cards)..where((c) => c.noteId.equals(noteId))).get();
@@ -53,6 +69,74 @@ class DeckRepository {
     return (_db.select(_db.deckConfigs)..where((c) => c.id.equals(deck.deckConfigId))).getSingle();
   }
 
-  Future<void> updateDeckConfig(DeckConfigsCompanion patch) =>
-      (_db.update(_db.deckConfigs)..where((c) => c.id.equals(patch.id.value))).write(patch);
+  /// Applies a settings edit only to [deckId]. Legacy databases and imported
+  /// collections can share option rows, so the row is cloned on edit whenever
+  /// another deck still references it.
+  Future<void> updateDeckConfig(int deckId, DeckConfigsCompanion patch) async {
+    await _db.transaction(() async {
+      final deck = await deckById(deckId);
+      final current = await configForDeck(deckId);
+      final merged = current.copyWithCompanion(patch);
+      final users = await (_db.select(_db.decks)..where((d) => d.deckConfigId.equals(current.id))).get();
+      if (users.length > 1) {
+        final newId = await _db.into(_db.deckConfigs).insert(_copyConfig(merged, name: deck.name));
+        await _copyFsrsOptions(current.id, newId);
+        await (_db.update(_db.decks)..where((d) => d.id.equals(deckId)))
+            .write(DecksCompanion(deckConfigId: Value(newId)));
+      } else {
+        await (_db.update(_db.deckConfigs)..where((c) => c.id.equals(current.id))).write(patch);
+      }
+    });
+  }
+
+  Future<double> desiredRetentionForDeck(int deckId) async {
+    final config = await configForDeck(deckId);
+    final row = await _db.customSelect(
+      'SELECT desired_retention FROM fsrs_deck_options WHERE deck_config_id = ?',
+      variables: [Variable.withInt(config.id)],
+    ).getSingleOrNull();
+    return row?.read<double>('desired_retention') ?? 0.9;
+  }
+
+  Future<void> updateDesiredRetention(int deckId, double value) async {
+    if (value < 0.70 || value > 0.99) {
+      throw ArgumentError.value(value, 'value', 'Desired retention must be between 0.70 and 0.99.');
+    }
+    final config = await configForDeck(deckId);
+    await _db.customStatement(
+      'INSERT INTO fsrs_deck_options(deck_config_id, desired_retention) VALUES (?, ?) '
+      'ON CONFLICT(deck_config_id) DO UPDATE SET desired_retention = excluded.desired_retention',
+      [config.id, value],
+    );
+  }
+
+  Future<void> _copyFsrsOptions(int sourceConfigId, int targetConfigId) async {
+    final row = await _db.customSelect(
+      'SELECT desired_retention FROM fsrs_deck_options WHERE deck_config_id = ?',
+      variables: [Variable.withInt(sourceConfigId)],
+    ).getSingleOrNull();
+    if (row == null) return;
+    await _db.customStatement(
+      'INSERT OR REPLACE INTO fsrs_deck_options(deck_config_id, desired_retention) VALUES (?, ?)',
+      [targetConfigId, row.read<double>('desired_retention')],
+    );
+  }
+
+  DeckConfigsCompanion _copyConfig(DeckConfig source, {required String name}) => DeckConfigsCompanion.insert(
+        name: name,
+        learningStepsMin: Value(source.learningStepsMin),
+        relearningStepsMin: Value(source.relearningStepsMin),
+        graduatingIntervalDays: Value(source.graduatingIntervalDays),
+        easyIntervalDays: Value(source.easyIntervalDays),
+        startingEase: Value(source.startingEase),
+        easyBonusPct: Value(source.easyBonusPct),
+        intervalModifierPct: Value(source.intervalModifierPct),
+        hardIntervalPct: Value(source.hardIntervalPct),
+        newIntervalPct: Value(source.newIntervalPct),
+        leechThreshold: Value(source.leechThreshold),
+        maximumIntervalDays: Value(source.maximumIntervalDays),
+        minEase: Value(source.minEase),
+        newPerDay: Value(source.newPerDay),
+        reviewsPerDay: Value(source.reviewsPerDay),
+      );
 }

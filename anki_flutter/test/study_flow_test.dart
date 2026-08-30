@@ -7,6 +7,7 @@ import 'package:anki_flutter/ui/study/study_screen.dart';
 import 'package:anki_flutter/ui/theme/app_theme.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -33,7 +34,7 @@ void main() {
     notes = NoteRepository(db, decks, notetypes);
     study = StudyRepository(db);
 
-    final defaultDeck = (await db.select(db.decks).get()).single;
+    final defaultDeck = (await db.select(db.decks).get()).firstWhere((deck) => deck.name == 'Default');
     deckId = defaultDeck.id;
   });
 
@@ -70,14 +71,14 @@ void main() {
     expect(find.textContaining('Question'), findsOneWidget);
     expect(find.textContaining('Answer'), findsNothing);
 
-    await tester.tap(find.text('Показать ответ'));
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pumpAndSettle();
     expect(find.textContaining('Answer'), findsOneWidget);
     expect(find.text('Хорошо'), findsOneWidget);
 
     // Good on a fresh card advances it to the second learning step ([1, 10]
     // minutes by default) rather than graduating it immediately.
-    await tester.tap(find.text('Хорошо'));
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
     await tester.pumpAndSettle();
 
     // The card is due again in 10 minutes, which is within dueQueue's
@@ -88,7 +89,7 @@ void main() {
     expect(due, hasLength(1), reason: 'a 10-minute-away learning step is within the learn-ahead window');
     expect(due.single.queue, CardQueue.learning);
 
-    final afterFirstGood = (await db.select(db.cards).get()).single;
+    final afterFirstGood = await (db.select(db.cards)..where((card) => card.deckId.equals(deckId))).getSingle();
     expect(afterFirstGood.queue, CardQueue.learning);
     expect(afterFirstGood.stepIndex, 1);
     expect(afterFirstGood.reps, 1);
@@ -96,9 +97,9 @@ void main() {
     // Answer Good again to graduate it into the review queue.
     await study.answerCard(cardId: due.single.id, rating: Rating.good);
 
-    final graduated = (await db.select(db.cards).get()).single;
+    final graduated = await (db.select(db.cards)..where((card) => card.deckId.equals(deckId))).getSingle();
     expect(graduated.queue, CardQueue.review);
-    expect(graduated.ivl, 1); // default graduating interval
+    expect(graduated.ivl, greaterThanOrEqualTo(1)); // determined by FSRS-6 memory state
     expect(graduated.reps, 2);
 
     await tester.pumpWidget(const SizedBox.shrink());

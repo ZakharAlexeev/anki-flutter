@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -10,14 +12,11 @@ import 'package:zstandard/zstandard.dart';
 
 import '../../domain/scheduler/day_calendar.dart';
 import '../db/database.dart';
+import 'archive_safety.dart';
+import 'media_import_plan.dart';
 import 'proto_reader.dart';
 
-class ImportException implements Exception {
-  final String message;
-  ImportException(this.message);
-  @override
-  String toString() => message;
-}
+export 'archive_safety.dart' show ImportException;
 
 class ImportProgress {
   final String phase;
@@ -58,8 +57,10 @@ class ImportSummary {
 /// usable data. So `collection.anki21b` must be preferred whenever present,
 /// not used as a last resort.
 ///
-/// Not supported: filtered/dynamic decks (`odid`/`odue`), out of scope for
-/// this app entirely.
+/// Cards temporarily placed in filtered/dynamic decks are restored to their
+/// original deck and due value (`odid`/`odue`). The filtered deck definition
+/// itself is intentionally not imported because the app has no custom-study
+/// UI yet.
 class ApkgImporter {
   ApkgImporter(this._db);
 
@@ -67,7 +68,12 @@ class ApkgImporter {
 
   Stream<ImportProgress> import(String apkgPath) async* {
     yield const ImportProgress('Распаковка архива', 0, 1);
-    final bytes = await File(apkgPath).readAsBytes();
+    final sourceFile = File(apkgPath);
+    if (await sourceFile.length() > maxApkgBytes) {
+      throw ImportException('Архив больше 256 МБ. Разделите коллекцию на несколько файлов.');
+    }
+    final bytes = await sourceFile.readAsBytes();
+    validateZipEnvelope(bytes);
     final archive = ZipDecoder().decodeBytes(bytes);
 
     ArchiveFile? find(String name) {
@@ -84,7 +90,12 @@ class ApkgImporter {
     Uint8List? sqliteBytes;
     if (entry21b != null) {
       yield const ImportProgress('Распаковка коллекции (zstd)', 0, 1);
-      sqliteBytes = await Zstandard().decompress(entry21b.content);
+      final compressed = Uint8List.fromList(entry21b.content as List<int>);
+      final declaredSize = zstdDeclaredContentSize(compressed);
+      if (declaredSize == null || declaredSize > maxSingleArchiveEntryBytes) {
+        throw ImportException('Коллекция имеет неизвестный или слишком большой размер после распаковки.');
+      }
+      sqliteBytes = await Zstandard().decompress(compressed);
       if (sqliteBytes == null) {
         throw ImportException('Не удалось распаковать коллекцию (повреждённый zstd-поток).');
       }
@@ -100,8 +111,12 @@ class ApkgImporter {
     final tempFile = File(p.join(tempDir.path, 'anki_import_${DateTime.now().microsecondsSinceEpoch}.sqlite'));
     await tempFile.writeAsBytes(sqliteBytes, flush: true);
 
+    MediaImportPlan? preparedMedia;
     ImportSummary summary;
     try {
+      yield const ImportProgress('Проверка медиафайлов', 0, 1);
+      final mediaPlan = await MediaImportPlan.prepare(archive);
+      preparedMedia = mediaPlan;
       final src = sqlite.sqlite3.open(tempFile.path, mode: sqlite.OpenMode.readOnly);
       // Anki's schema v18+ tables declare `COLLATE unicase` on several text
       // columns. Recent sqlite3 versions refuse to even *prepare* a
@@ -125,23 +140,31 @@ class ApkgImporter {
         // after the fact. The trade-off is coarser progress reporting
         // during this phase (Dart's `yield` can't cross into the
         // transaction callback), which is a fine price for atomicity.
-        final dbSummary = await _db.transaction(() => _readAndWrite(src, destMeta));
-
-        yield const ImportProgress('Медиафайлы', 0, 1);
-        final mediaCount = await _importMedia(archive);
+        ImportSummary dbSummary;
+        try {
+          dbSummary = await _db.transaction(() async {
+            final result = await _readAndWrite(src, destMeta, mediaPlan);
+            await mediaPlan.commit();
+            return result;
+          });
+        } catch (_) {
+          await mediaPlan.rollbackFiles();
+          rethrow;
+        }
 
         summary = ImportSummary(
           decks: dbSummary.decks,
           notetypes: dbSummary.notetypes,
           notes: dbSummary.notes,
           cards: dbSummary.cards,
-          mediaFiles: mediaCount,
+          mediaFiles: mediaPlan.mediaCount,
         );
       } finally {
         src.close();
       }
     } finally {
       if (await tempFile.exists()) await tempFile.delete();
+      if (preparedMedia != null) await preparedMedia.cleanup();
     }
 
     yield ImportProgress(
@@ -151,7 +174,11 @@ class ApkgImporter {
     );
   }
 
-  Future<ImportSummary> _readAndWrite(sqlite.Database src, CollectionMetaData destMeta) async {
+  Future<ImportSummary> _readAndWrite(
+    sqlite.Database src,
+    CollectionMetaData destMeta,
+    MediaImportPlan mediaPlan,
+  ) async {
     final colRow = src.select('SELECT crt, conf, models, decks, dconf FROM col LIMIT 1').first;
     final sourceCrt = colRow['crt'] as int;
 
@@ -206,13 +233,14 @@ class ApkgImporter {
     if (isNewSchema) {
       final dconfRows = src.select('SELECT id, name, config FROM deck_config');
       for (final row in dconfRows) {
-        final id = row['id'] as int;
+        final sourceId = row['id'] as int;
+        final localId = _importedId(sourceCrt, 'deck-config', sourceId);
         final cfg = ProtoMessage.parse(row['config'] as Uint8List);
         final learnSteps = cfg.getPackedFloats(1);
         final relearnSteps = cfg.getPackedFloats(2);
 
         await _db.into(_db.deckConfigs).insertOnConflictUpdate(DeckConfigsCompanion(
-              id: Value(id),
+              id: Value(localId),
               name: Value((row['name'] as String?) ?? 'Imported'),
               learningStepsMin: Value(learnSteps.isEmpty ? '1,10' : learnSteps.map((e) => e.round()).join(',')),
               relearningStepsMin: Value(relearnSteps.isEmpty ? '10' : relearnSteps.map((e) => e.round()).join(',')),
@@ -228,12 +256,13 @@ class ApkgImporter {
               newPerDay: Value(cfg.getInt(9) ?? 20),
               reviewsPerDay: Value(cfg.getInt(10) ?? 200),
             ));
-        deckConfigIdMap[id] = id;
+        deckConfigIdMap[sourceId] = localId;
       }
     } else {
       final dconf = jsonDecode(colRow['dconf'] as String) as Map<String, dynamic>;
       for (final entry in dconf.entries) {
-        final id = int.parse(entry.key);
+        final sourceId = int.parse(entry.key);
+        final localId = _importedId(sourceCrt, 'deck-config', sourceId);
         final def = entry.value as Map<String, dynamic>;
         final newBlock = (def['new'] as Map?)?.cast<String, dynamic>() ?? const {};
         final revBlock = (def['rev'] as Map?)?.cast<String, dynamic>() ?? const {};
@@ -243,7 +272,7 @@ class ApkgImporter {
         final lapseDelays = (lapseBlock['delays'] as List?)?.cast<num>() ?? const [10];
 
         await _db.into(_db.deckConfigs).insertOnConflictUpdate(DeckConfigsCompanion(
-              id: Value(id),
+              id: Value(localId),
               name: Value((def['name'] as String?) ?? 'Imported'),
               learningStepsMin: Value(delays.map((e) => e.round()).join(',')),
               relearningStepsMin: Value(lapseDelays.map((e) => e.round()).join(',')),
@@ -259,7 +288,7 @@ class ApkgImporter {
               newPerDay: Value(((newBlock['perDay'] as num?) ?? 20).round()),
               reviewsPerDay: Value(((revBlock['perDay'] as num?) ?? 200).round()),
             ));
-        deckConfigIdMap[id] = id;
+        deckConfigIdMap[sourceId] = localId;
       }
     }
     final fallbackConfigId = deckConfigIdMap.values.isNotEmpty
@@ -279,12 +308,13 @@ class ApkgImporter {
         deckIdMap[sourceId] = existing.id;
         return;
       }
+      final localId = _importedId(sourceCrt, 'deck', sourceId);
       await _db.into(_db.decks).insertOnConflictUpdate(DecksCompanion(
-            id: Value(sourceId),
+            id: Value(localId),
             name: Value(name),
             deckConfigId: Value(configId),
           ));
-      deckIdMap[sourceId] = sourceId;
+      deckIdMap[sourceId] = localId;
     }
 
     var deckCount = 0;
@@ -357,26 +387,27 @@ class ApkgImporter {
         }
         name = '$requestedName (imported)';
       }
+      final localId = _importedId(sourceCrt, 'notetype', sourceId);
       await _db.into(_db.notetypes).insertOnConflictUpdate(
-            NotetypesCompanion(id: Value(sourceId), name: Value(name), css: Value(css)),
+            NotetypesCompanion(id: Value(localId), name: Value(name), css: Value(css)),
           );
-      await (_db.delete(_db.notetypeFields)..where((f) => f.notetypeId.equals(sourceId))).go();
-      await (_db.delete(_db.notetypeTemplates)..where((t) => t.notetypeId.equals(sourceId))).go();
+      await (_db.delete(_db.notetypeFields)..where((f) => f.notetypeId.equals(localId))).go();
+      await (_db.delete(_db.notetypeTemplates)..where((t) => t.notetypeId.equals(localId))).go();
       for (final f in fields) {
         await _db.into(_db.notetypeFields).insert(
-              NotetypeFieldsCompanion.insert(notetypeId: sourceId, name: f.$2, ord: f.$1),
+              NotetypeFieldsCompanion.insert(notetypeId: localId, name: f.$2, ord: f.$1),
             );
       }
       for (final t in templates) {
         await _db.into(_db.notetypeTemplates).insert(NotetypeTemplatesCompanion.insert(
-              notetypeId: sourceId,
+              notetypeId: localId,
               name: t.$2,
               ord: t.$1,
               questionFormat: Value(t.$3),
               answerFormat: Value(t.$4),
             ));
       }
-      notetypeIdMap[sourceId] = sourceId;
+      notetypeIdMap[sourceId] = localId;
     }
 
     var notetypeCount = 0;
@@ -426,54 +457,69 @@ class ApkgImporter {
     }
 
     final noteRows = src.select('SELECT id, mid, flds, tags FROM notes');
+    final noteIdMap = <int, int>{};
     var noteCount = 0;
     for (final row in noteRows) {
-      final fields = (row['flds'] as String).split('\x1f');
+      final sourceId = row['id'] as int;
+      final localId = _importedId(sourceCrt, 'note', sourceId);
+      final fields = (row['flds'] as String).split('\x1f').map(mediaPlan.rewriteReferences).toList();
       final sourceMid = row['mid'] as int;
+      final notetypeId = notetypeIdMap[sourceMid];
+      if (notetypeId == null) continue;
       await _db.into(_db.notes).insertOnConflictUpdate(NotesCompanion(
-            id: Value(row['id'] as int),
-            notetypeId: Value(notetypeIdMap[sourceMid] ?? sourceMid),
+            id: Value(localId),
+            notetypeId: Value(notetypeId),
             fieldsJson: Value(jsonEncode(fields)),
             tags: Value(((row['tags'] as String?) ?? '').trim()),
           ));
+      noteIdMap[sourceId] = localId;
       noteCount++;
     }
 
     final cardRows = src.select(
-      'SELECT id, nid, did, ord, type, queue, due, ivl, factor, reps, lapses FROM cards',
+      'SELECT id, nid, did, ord, type, queue, due, ivl, factor, reps, lapses, odid, odue FROM cards',
     );
+    final cardIdMap = <int, int>{};
     var cardCount = 0;
     for (final row in cardRows) {
-      final sourceDid = row['did'] as int;
+      final sourceId = row['id'] as int;
+      final sourceOdid = row['odid'] as int;
+      final sourceDid = sourceOdid == 0 ? row['did'] as int : sourceOdid;
       final deckId = deckIdMap[sourceDid];
-      if (deckId == null) continue; // card belongs to a filtered deck we skipped: out of scope
+      final noteId = noteIdMap[row['nid'] as int];
+      if (deckId == null || noteId == null) continue;
 
-      final queueInt = row['queue'] as int;
+      // A filtered deck temporarily replaces did/due/queue. Restore the
+      // original deck and due value instead of dropping the card (and later
+      // failing its revlog foreign key).
+      final queueInt = sourceOdid == 0 ? row['queue'] as int : row['type'] as int;
       final queue = _mapQueue(queueInt);
       final ivl = row['ivl'] as int;
       var ease = row['factor'] as int;
       if (ease == 0) ease = 2500;
 
       int due;
+      final rawDue = sourceOdid == 0 ? row['due'] as int : row['odue'] as int;
       switch (queue) {
         case CardQueue.review:
-          due = reprojectDay(row['due'] as int);
+          due = reprojectDay(rawDue);
           break;
         case CardQueue.suspended:
-          due = ivl > 0 ? reprojectDay(row['due'] as int) : 0;
+          due = ivl > 0 ? reprojectDay(rawDue) : 0;
           break;
         case CardQueue.learning:
         case CardQueue.relearning:
-          due = resolveLearningDue(row['due'] as int);
+          due = resolveLearningDue(rawDue);
           break;
         case CardQueue.newCard:
           due = 0;
           break;
       }
 
+      final localId = _importedId(sourceCrt, 'card', sourceId);
       await _db.into(_db.cards).insertOnConflictUpdate(CardsCompanion(
-            id: Value(row['id'] as int),
-            noteId: Value(row['nid'] as int),
+            id: Value(localId),
+            noteId: Value(noteId),
             deckId: Value(deckId),
             templateOrd: Value(row['ord'] as int),
             queue: Value(queue),
@@ -484,6 +530,7 @@ class ApkgImporter {
             lapses: Value(row['lapses'] as int),
             stepIndex: const Value(0), // mid-step position not reconstructed on import
           ));
+      cardIdMap[sourceId] = localId;
       cardCount++;
     }
 
@@ -491,6 +538,10 @@ class ApkgImporter {
       'SELECT id, cid, ease, ivl, lastIvl, factor, time FROM revlog WHERE ease != 0',
     );
     for (final row in revRows) {
+      final sourceCardId = row['cid'] as int;
+      final cardId = cardIdMap[sourceCardId];
+      if (cardId == null) continue;
+      final sourceId = row['id'] as int;
       final factor = row['factor'] as int;
       final ivl = row['ivl'] as int;
       final lastIvl = row['lastIvl'] as int;
@@ -501,9 +552,9 @@ class ApkgImporter {
       // updating the existing one, silently doubling review history and
       // stats on every repeat import.
       await _db.into(_db.revLog).insertOnConflictUpdate(RevLogCompanion(
-            id: Value(row['id'] as int),
-            cardId: Value(row['cid'] as int),
-            reviewedAt: Value((row['id'] as int) ~/ 1000),
+            id: Value(_importedId(sourceCrt, 'review', sourceId)),
+            cardId: Value(cardId),
+            reviewedAt: Value(sourceId ~/ 1000),
             rating: Value(row['ease'] as int),
             ivlBefore: Value(lastIvl < 0 ? 0 : lastIvl),
             ivlAfter: Value(ivl < 0 ? 0 : ivl),
@@ -515,62 +566,11 @@ class ApkgImporter {
     return ImportSummary(decks: deckCount, notetypes: notetypeCount, notes: noteCount, cards: cardCount, mediaFiles: 0);
   }
 
-  Future<int> _importMedia(Archive archive) async {
-    ArchiveFile? find(String name) {
-      for (final f in archive.files) {
-        if (f.name == name) return f;
-      }
-      return null;
-    }
-
-    final mediaIndex = find('media');
-    if (mediaIndex == null) return 0;
-
-    // Like collection.anki21b, the media index is zstd-compressed in the
-    // current export format (still plain JSON once decompressed - just a
-    // {"<archive entry name>": "<real filename>"} map, same as the legacy
-    // format). A collection with no media compresses down to zero bytes.
-    var indexBytes = mediaIndex.content;
-    if (indexBytes.length >= 4 &&
-        indexBytes[0] == 0x28 &&
-        indexBytes[1] == 0xB5 &&
-        indexBytes[2] == 0x2F &&
-        indexBytes[3] == 0xFD) {
-      indexBytes = await Zstandard().decompress(indexBytes) ?? Uint8List(0);
-    }
-    if (indexBytes.isEmpty) return 0;
-
-    final Map<String, dynamic> map;
-    try {
-      map = jsonDecode(utf8.decode(indexBytes)) as Map<String, dynamic>;
-    } on FormatException {
-      // Unrecognised media index shape - not worth failing the whole
-      // import over (notes/cards already imported fine); just skip media.
-      return 0;
-    }
-    final appDir = await getApplicationSupportDirectory();
-    final mediaDir = Directory(p.join(appDir.path, 'media'));
-    await mediaDir.create(recursive: true);
-
-    var count = 0;
-    for (final entry in map.entries) {
-      final file = archive.files.cast<ArchiveFile?>().firstWhere((f) => f?.name == entry.key, orElse: () => null);
-      if (file == null) continue;
-
-      // The real filename comes straight from inside the archive - never
-      // trust it as a path. p.basename() strips any directory components
-      // (including "../.." traversal attempts), and the containment check
-      // below is a second belt-and-braces guard in case a crafted name
-      // still resolves outside mediaDir once normalized.
-      final safeName = p.basename(entry.value as String);
-      if (safeName.isEmpty || safeName == '.' || safeName == '..') continue;
-      final destPath = p.normalize(p.join(mediaDir.path, safeName));
-      if (!p.isWithin(p.normalize(mediaDir.path), destPath)) continue;
-
-      await File(destPath).writeAsBytes(file.content as List<int>, flush: true);
-      count++;
-    }
-    return count;
+  int _importedId(int collectionCreatedAt, String kind, int sourceId) {
+    final digest = sha256.convert(utf8.encode('$collectionCreatedAt:$kind:$sourceId')).bytes;
+    final data = ByteData.sublistView(Uint8List.fromList(digest));
+    final value = data.getUint64(0, Endian.big) & 0x7fffffffffffffff;
+    return value == 0 ? 1 : value;
   }
 
   CardQueue _mapQueue(int queueInt) {
