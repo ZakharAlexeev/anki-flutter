@@ -60,26 +60,33 @@ class _StatsScreenState extends State<StatsScreen> {
                     const SizedBox(height: AppSpacing.lg),
                     _ChartCard(
                       title: 'Прогноз повторений (30 дней)',
+                      semanticLabel: _daySeriesSummary('Прогноз', stats.forecast),
                       child: _ForecastChart(data: stats.forecast),
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     _ChartCard(
                       title: 'История повторений (30 дней)',
+                      semanticLabel: _daySeriesSummary('История', stats.reviewHistory),
                       child: _HistoryChart(data: stats.reviewHistory),
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     _ChartCard(
                       title: 'Карточки по статусу',
+                      semanticLabel:
+                          'Новые: ${stats.cardCounts.newCount}; изучение: ${stats.cardCounts.learningCount}; '
+                          'повторение: ${stats.cardCounts.reviewCount}; приостановленные: ${stats.cardCounts.suspendedCount}.',
                       child: _CardCountsChart(counts: stats.cardCounts),
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     _ChartCard(
                       title: 'Интервалы повторения',
+                      semanticLabel: _bucketSummary('Интервалы повторения', stats.intervalHistogram),
                       child: _BucketChart(buckets: stats.intervalHistogram),
                     ),
                     const SizedBox(height: AppSpacing.lg),
                     _ChartCard(
                       title: 'Коэффициент лёгкости',
+                      semanticLabel: _bucketSummary('Коэффициент лёгкости', stats.easeHistogram),
                       child: _BucketChart(buckets: stats.easeHistogram),
                     ),
                     const SizedBox(height: AppSpacing.lg),
@@ -93,9 +100,10 @@ class _StatsScreenState extends State<StatsScreen> {
 }
 
 class _ChartCard extends StatelessWidget {
-  const _ChartCard({required this.title, required this.child});
+  const _ChartCard({required this.title, required this.semanticLabel, required this.child});
 
   final String title;
+  final String semanticLabel;
   final Widget child;
 
   @override
@@ -113,11 +121,27 @@ class _ChartCard extends StatelessWidget {
         children: [
           Text(title, style: Theme.of(context).textTheme.titleSmall),
           const SizedBox(height: AppSpacing.md),
-          SizedBox(height: 160, child: child),
+          Semantics(
+            label: semanticLabel,
+            child: ExcludeSemantics(child: SizedBox(height: 160, child: child)),
+          ),
         ],
       ),
     );
   }
+}
+
+String _daySeriesSummary(String title, List<DayCount> values) {
+  final total = values.fold<int>(0, (sum, value) => sum + value.count);
+  if (total == 0) return '$title: данных нет.';
+  final peak = values.reduce((left, right) => left.count >= right.count ? left : right);
+  return '$title: всего $total; максимум ${peak.count} в день со смещением ${peak.dayOffset}.';
+}
+
+String _bucketSummary(String title, List<BucketCount> values) {
+  final populated = values.where((value) => value.count > 0);
+  if (populated.isEmpty) return '$title: данных нет.';
+  return '$title: ${populated.map((value) => '${value.label} — ${value.count}').join('; ')}.';
 }
 
 class _TodayRow extends StatelessWidget {

@@ -7,6 +7,7 @@ import 'package:anki_flutter/ui/study/study_screen.dart';
 import 'package:anki_flutter/ui/theme/app_theme.dart';
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 
@@ -70,14 +71,14 @@ void main() {
     expect(find.textContaining('Question'), findsOneWidget);
     expect(find.textContaining('Answer'), findsNothing);
 
-    await tester.tap(find.text('Показать ответ'));
+    await tester.sendKeyEvent(LogicalKeyboardKey.space);
     await tester.pumpAndSettle();
     expect(find.textContaining('Answer'), findsOneWidget);
     expect(find.text('Хорошо'), findsOneWidget);
 
     // Good on a fresh card advances it to the second learning step ([1, 10]
     // minutes by default) rather than graduating it immediately.
-    await tester.tap(find.text('Хорошо'));
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
     await tester.pumpAndSettle();
 
     // The card is due again in 10 minutes, which is within dueQueue's

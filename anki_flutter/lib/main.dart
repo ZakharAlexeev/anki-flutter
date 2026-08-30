@@ -58,7 +58,8 @@ class AnkiFlutterApp extends StatelessWidget {
         title: 'Anki Flutter',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
-        themeMode: ThemeMode.light,
+        darkTheme: AppTheme.dark(),
+        themeMode: ThemeMode.system,
         home: const DeckListScreen(),
       ),
     );

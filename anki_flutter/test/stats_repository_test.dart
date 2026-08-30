@@ -178,4 +178,12 @@ void main() {
       expect(result.matureCount, 1);
     });
   });
+
+  test('ease histogram reports Anki permille values as percentages', () async {
+    await addCard(queue: CardQueue.review, ivl: 10, ease: 2500);
+    final result = await stats.load(now: now);
+    expect(result.easeHistogram, hasLength(1));
+    expect(result.easeHistogram.single.label, '250%');
+    expect(result.easeHistogram.single.count, 1);
+  });
 }

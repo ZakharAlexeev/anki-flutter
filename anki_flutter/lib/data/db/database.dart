@@ -26,12 +26,13 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
+          await _createPerformanceIndexes();
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
@@ -52,6 +53,7 @@ class AppDatabase extends _$AppDatabase {
               'UPDATE notes SET created_at = created_at / 1000 WHERE created_at > $microsecondThreshold',
             );
           }
+          if (from < 3) await _createPerformanceIndexes();
         },
         beforeOpen: (details) async {
           // SQLite defaults foreign-key enforcement to OFF for backwards
@@ -63,6 +65,15 @@ class AppDatabase extends _$AppDatabase {
           await customStatement('PRAGMA foreign_keys = ON');
         },
       );
+
+  Future<void> _createPerformanceIndexes() async {
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_cards_deck_queue_due ON cards(deck_id, queue, due)');
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_cards_note_template ON cards(note_id, template_ord)');
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_revlog_card_reviewed ON rev_log(card_id, reviewed_at)');
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_revlog_reviewed ON rev_log(reviewed_at)');
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_fields_notetype_ord ON notetype_fields(notetype_id, ord)');
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_templates_notetype_ord ON notetype_templates(notetype_id, ord)');
+  }
 
   /// Ensures a single [CollectionMeta] row and the built-in starter content
   /// exist. Safe to call on every startup.
