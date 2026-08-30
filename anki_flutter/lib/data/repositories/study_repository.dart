@@ -43,6 +43,18 @@ class StudyRepository {
     return (_db.select(_db.deckConfigs)..where((c) => c.id.equals(deck.deckConfigId))).getSingle();
   }
 
+  Future<DeckSchedConfig> _configForDeck(int deckId) async {
+    final row = await _configRowForDeck(deckId);
+    final options = await _db.customSelect(
+      'SELECT desired_retention FROM fsrs_deck_options WHERE deck_config_id = ?',
+      variables: [Variable.withInt(row.id)],
+    ).getSingleOrNull();
+    return schedConfigFromRow(
+      row,
+      desiredRetention: options?.read<double>('desired_retention') ?? 0.9,
+    );
+  }
+
   /// Cards ready to study right now, ordered: learning steps that have
   /// actually elapsed -> review -> new -> learning steps still counting
   /// down (pulled in early only so the session doesn't stall waiting on
@@ -122,10 +134,9 @@ class StudyRepository {
   Future<Map<Rating, CardSchedState>> previewOutcomes(int cardId, {DateTime? now}) async {
     final n = now ?? DateTime.now();
     final entry = await (_db.select(_db.cards)..where((c) => c.id.equals(cardId))).getSingle();
-    final cfgRow = await _configRowForDeck(entry.deckId);
-    final config = schedConfigFromRow(cfgRow);
+    final config = await _configForDeck(entry.deckId);
     final t = await today(n);
-    return _scheduler.previewOutcomes(card: _stateFromEntry(entry), config: config, now: n, today: t);
+    return _scheduler.previewOutcomes(card: await _stateFromEntry(entry, config), config: config, now: n, today: t);
   }
 
   /// Applies [rating] to [cardId], persists the new scheduling state and
@@ -146,12 +157,11 @@ class StudyRepository {
       // second caller can no longer append a duplicate revlog entry based on
       // scheduling state read before the first answer was committed.
       final entry = await (_db.select(_db.cards)..where((c) => c.id.equals(cardId))).getSingle();
-      final cfgRow = await _configRowForDeck(entry.deckId);
-      final config = schedConfigFromRow(cfgRow);
+      final config = await _configForDeck(entry.deckId);
       final t = await today(n);
       final nowSec = n.millisecondsSinceEpoch ~/ 1000;
       final outcome = _scheduler.answerCard(
-        card: _stateFromEntry(entry),
+        card: await _stateFromEntry(entry, config),
         config: config,
         rating: rating,
         now: n,
@@ -169,6 +179,15 @@ class StudyRepository {
         stepIndex: Value(outcome.state.stepIndex),
         lastReviewedAt: Value(nowSec),
       ));
+      final stability = outcome.state.stability;
+      final difficulty = outcome.state.difficulty;
+      if (stability != null && difficulty != null) {
+        await _db.customStatement(
+          'INSERT INTO fsrs_card_state(card_id, stability, difficulty) VALUES (?, ?, ?) '
+          'ON CONFLICT(card_id) DO UPDATE SET stability = excluded.stability, difficulty = excluded.difficulty',
+          [cardId, stability, difficulty],
+        );
+      }
       await _db.into(_db.revLog).insert(RevLogCompanion.insert(
             cardId: cardId,
             reviewedAt: nowSec,
@@ -199,13 +218,44 @@ class StudyRepository {
     });
   }
 
-  CardSchedState _stateFromEntry(CardEntry entry) => CardSchedState(
-        queue: entry.queue,
-        due: entry.due,
-        ivl: entry.ivl,
-        ease: entry.ease,
-        reps: entry.reps,
-        lapses: entry.lapses,
-        stepIndex: entry.stepIndex,
-      );
+  Future<CardSchedState> _stateFromEntry(CardEntry entry, DeckSchedConfig config) async {
+    final memory = await _db.customSelect(
+      'SELECT stability, difficulty FROM fsrs_card_state WHERE card_id = ?',
+      variables: [Variable.withInt(entry.id)],
+    ).getSingleOrNull();
+    final state = CardSchedState(
+      queue: entry.queue,
+      due: entry.due,
+      ivl: entry.ivl,
+      ease: entry.ease,
+      reps: entry.reps,
+      lapses: entry.lapses,
+      stepIndex: entry.stepIndex,
+      stability: memory?.read<double>('stability'),
+      difficulty: memory?.read<double>('difficulty'),
+      lastReviewedAt: entry.lastReviewedAt,
+    );
+    if (memory != null || entry.reps == 0) return state;
+
+    final history = await (_db.select(_db.revLog)
+          ..where((row) => row.cardId.equals(entry.id))
+          ..orderBy([(row) => OrderingTerm.asc(row.reviewedAt)]))
+        .get();
+    return _scheduler.rebuildMemoryState(
+      card: state,
+      config: config,
+      reviews: [
+        for (final row in history)
+          SchedulingReview(reviewedAt: row.reviewedAt, rating: _ratingFromInt(row.rating)),
+      ],
+    );
+  }
+
+  Rating _ratingFromInt(int value) => switch (value) {
+        1 => Rating.again,
+        2 => Rating.hard,
+        3 => Rating.good,
+        4 => Rating.easy,
+        _ => throw StateError('Unsupported review rating: $value'),
+      };
 }

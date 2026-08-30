@@ -1,5 +1,5 @@
 name: anki_flutter
-description: "A local-first spaced-repetition flashcard app: Anki-compatible .apkg import/export, SM-2-derived scheduling, and study statistics."
+description: "A local-first spaced-repetition flashcard app: Anki-compatible .apkg import/export, FSRS-6 scheduling, and study statistics."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
 publish_to: 'none' # Remove this line if you wish to publish to pub.dev
@@ -47,6 +47,7 @@ dependencies:
   fl_chart: ^1.2.0
   zstandard: ^1.5.0
   crypto: ^3.0.6
+  fsrs: ^2.0.1
 dev_dependencies:
   flutter_test:
     sdk: flutter

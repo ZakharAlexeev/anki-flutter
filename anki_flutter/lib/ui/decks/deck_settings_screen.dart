@@ -39,6 +39,7 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
   final _minEase = TextEditingController();
   final _newPerDay = TextEditingController();
   final _reviewsPerDay = TextEditingController();
+  final _desiredRetention = TextEditingController();
 
   @override
   void initState() {
@@ -63,6 +64,7 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
       _minEase,
       _newPerDay,
       _reviewsPerDay,
+      _desiredRetention,
     ]) {
       c.dispose();
     }
@@ -70,7 +72,9 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
   }
 
   Future<void> _load() async {
-    final config = await context.read<DeckRepository>().configForDeck(widget.deckId);
+    final repository = context.read<DeckRepository>();
+    final config = await repository.configForDeck(widget.deckId);
+    final desiredRetention = await repository.desiredRetentionForDeck(widget.deckId);
     if (!mounted) return;
     setState(() {
       _config = config;
@@ -88,6 +92,7 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
       _minEase.text = '${config.minEase / 10}';
       _newPerDay.text = '${config.newPerDay}';
       _reviewsPerDay.text = '${config.reviewsPerDay}';
+      _desiredRetention.text = '${(desiredRetention * 100).round()}';
     });
   }
 
@@ -125,6 +130,7 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
     final minEase = _percentAsEase(_minEase);
     final newPerDay = _int(_newPerDay);
     final reviewsPerDay = _int(_reviewsPerDay);
+    final desiredRetentionPct = _int(_desiredRetention);
 
     final numbers = [
       graduatingInterval,
@@ -139,6 +145,7 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
       minEase,
       newPerDay,
       reviewsPerDay,
+      desiredRetentionPct,
     ];
     if (numbers.any((n) => n == null || n < 0)) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -146,10 +153,17 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
       );
       return;
     }
+    if (desiredRetentionPct! < 70 || desiredRetentionPct > 99) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Желаемое запоминание должно быть от 70% до 99%')),
+      );
+      return;
+    }
 
     setState(() => _saving = true);
     try {
-      await context.read<DeckRepository>().updateDeckConfig(widget.deckId, DeckConfigsCompanion(
+      final repository = context.read<DeckRepository>();
+      await repository.updateDeckConfig(widget.deckId, DeckConfigsCompanion(
             id: Value(config.id),
             learningStepsMin: Value(_learningSteps.text.trim()),
             relearningStepsMin: Value(_relearningSteps.text.trim()),
@@ -166,6 +180,7 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
             newPerDay: Value(newPerDay!),
             reviewsPerDay: Value(reviewsPerDay!),
           ));
+      await repository.updateDesiredRetention(widget.deckId, desiredRetentionPct! / 100);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Настройки сохранены')));
       Navigator.of(context).pop();
@@ -190,26 +205,18 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
                   children: [
                     Text('РАСПИСАНИЕ', style: Theme.of(context).textTheme.labelSmall),
                     const SizedBox(height: AppSpacing.sm),
-                    Text('Параметры повторения', style: Theme.of(context).textTheme.headlineSmall),
+                    Text('Планировщик FSRS-6', style: Theme.of(context).textTheme.headlineSmall),
                     const SizedBox(height: 6),
                     Text(
-                      'Настройте темп обучения. Значения применяются только к этой колоде.',
+                      'Современный планировщик Anki. Значения применяются только к этой колоде.',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: context.appColors.muted),
                     ),
                     _section('Шаги обучения'),
                     _numRow(_learningSteps, 'Новые (мин, через запятую)'),
                     _numRow(_relearningSteps, 'Повтор после ошибки (мин, через запятую)'),
-                    _section('Интервалы'),
-                    _numRow(_graduatingInterval, 'Интервал после обучения (дни)'),
-                    _numRow(_easyInterval, 'Интервал "Легко" (дни)'),
+                    _section('FSRS'),
+                    _numRow(_desiredRetention, 'Желаемое запоминание (%)'),
                     _numRow(_maximumIntervalDays, 'Максимальный интервал (дни)'),
-                    _section('Коэффициент лёгкости'),
-                    _numRow(_startingEase, 'Начальный (%)'),
-                    _numRow(_minEase, 'Минимальный (%)'),
-                    _numRow(_easyBonusPct, 'Бонус "Легко" (%)'),
-                    _numRow(_intervalModifierPct, 'Множитель интервала (%)'),
-                    _numRow(_hardIntervalPct, 'Множитель "Трудно" (%)'),
-                    _numRow(_newIntervalPct, 'Множитель после провала (%)'),
                     _section('Лимиты и leech'),
                     _numRow(_newPerDay, 'Новых карточек в день'),
                     _numRow(_reviewsPerDay, 'Повторений в день'),

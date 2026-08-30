@@ -5,6 +5,7 @@ import 'package:anki_flutter/data/import/archive_safety.dart';
 import 'package:anki_flutter/data/repositories/deck_repository.dart';
 import 'package:anki_flutter/data/repositories/note_repository.dart';
 import 'package:anki_flutter/data/repositories/notetype_repository.dart';
+import 'package:anki_flutter/data/repositories/study_repository.dart';
 import 'package:archive/archive.dart';
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
@@ -152,6 +153,58 @@ void main() {
       expect(first.hasMore, isTrue);
       expect(second.rows, hasLength(5));
       expect(second.hasMore, isFalse);
+    });
+
+    test('duplicate search normalizes first field and stays within note type', () async {
+      final basic = (await db.select(db.notetypes).get()).firstWhere((notetype) => notetype.name == 'Basic');
+      final reversed = (await db.select(db.notetypes).get()).firstWhere(
+        (notetype) => notetype.name == 'Basic (and reversed card)',
+      );
+      await notes.createNote(
+        notetypeId: basic.id,
+        deckId: defaultDeckId,
+        fields: ['<b>Hello</b>  world', 'One'],
+      );
+      await notes.createNote(
+        notetypeId: basic.id,
+        deckId: defaultDeckId,
+        fields: ['hello world', 'Two'],
+      );
+      await notes.createNote(
+        notetypeId: reversed.id,
+        deckId: defaultDeckId,
+        fields: ['HELLO WORLD', 'Different type'],
+      );
+
+      final duplicates = await notes.findDuplicates();
+      final hello = duplicates.singleWhere((group) => group.normalizedValue == 'hello world');
+      expect(hello.matches, hasLength(2));
+      expect(hello.matches.map((match) => match.note.notetypeId).toSet(), {basic.id});
+    });
+
+    test('FSRS memory state and desired retention persist in companion tables', () async {
+      final basic = (await db.select(db.notetypes).get()).firstWhere((notetype) => notetype.name == 'Basic');
+      final noteId = await notes.createNote(
+        notetypeId: basic.id,
+        deckId: defaultDeckId,
+        fields: ['FSRS', 'State'],
+      );
+      final card = await (db.select(db.cards)..where((row) => row.noteId.equals(noteId))).getSingle();
+      await StudyRepository(db).answerCard(
+        cardId: card.id,
+        rating: Rating.good,
+        now: DateTime.utc(2026, 1, 10, 12),
+      );
+
+      final memory = await db.customSelect(
+        'SELECT stability, difficulty FROM fsrs_card_state WHERE card_id = ?',
+        variables: [Variable.withInt(card.id)],
+      ).getSingle();
+      expect(memory.read<double>('stability'), greaterThan(0));
+      expect(memory.read<double>('difficulty'), inInclusiveRange(1, 10));
+
+      await decks.updateDesiredRetention(defaultDeckId, 0.95);
+      expect(await decks.desiredRetentionForDeck(defaultDeckId), closeTo(0.95, 0.0001));
     });
   });
 }

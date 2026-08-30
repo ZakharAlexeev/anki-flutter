@@ -26,6 +26,7 @@ class DeckRepository {
       } else {
         final source = await _defaultDeckConfig();
         configId = await _db.into(_db.deckConfigs).insert(_copyConfig(source, name: name));
+        await _copyFsrsOptions(source.id, configId);
       }
       return _db.into(_db.decks).insert(DecksCompanion(name: Value(name), deckConfigId: Value(configId)));
     });
@@ -79,12 +80,46 @@ class DeckRepository {
       final users = await (_db.select(_db.decks)..where((d) => d.deckConfigId.equals(current.id))).get();
       if (users.length > 1) {
         final newId = await _db.into(_db.deckConfigs).insert(_copyConfig(merged, name: deck.name));
+        await _copyFsrsOptions(current.id, newId);
         await (_db.update(_db.decks)..where((d) => d.id.equals(deckId)))
             .write(DecksCompanion(deckConfigId: Value(newId)));
       } else {
         await (_db.update(_db.deckConfigs)..where((c) => c.id.equals(current.id))).write(patch);
       }
     });
+  }
+
+  Future<double> desiredRetentionForDeck(int deckId) async {
+    final config = await configForDeck(deckId);
+    final row = await _db.customSelect(
+      'SELECT desired_retention FROM fsrs_deck_options WHERE deck_config_id = ?',
+      variables: [Variable.withInt(config.id)],
+    ).getSingleOrNull();
+    return row?.read<double>('desired_retention') ?? 0.9;
+  }
+
+  Future<void> updateDesiredRetention(int deckId, double value) async {
+    if (value < 0.70 || value > 0.99) {
+      throw ArgumentError.value(value, 'value', 'Desired retention must be between 0.70 and 0.99.');
+    }
+    final config = await configForDeck(deckId);
+    await _db.customStatement(
+      'INSERT INTO fsrs_deck_options(deck_config_id, desired_retention) VALUES (?, ?) '
+      'ON CONFLICT(deck_config_id) DO UPDATE SET desired_retention = excluded.desired_retention',
+      [config.id, value],
+    );
+  }
+
+  Future<void> _copyFsrsOptions(int sourceConfigId, int targetConfigId) async {
+    final row = await _db.customSelect(
+      'SELECT desired_retention FROM fsrs_deck_options WHERE deck_config_id = ?',
+      variables: [Variable.withInt(sourceConfigId)],
+    ).getSingleOrNull();
+    if (row == null) return;
+    await _db.customStatement(
+      'INSERT OR REPLACE INTO fsrs_deck_options(deck_config_id, desired_retention) VALUES (?, ?)',
+      [targetConfigId, row.read<double>('desired_retention')],
+    );
   }
 
   DeckConfigsCompanion _copyConfig(DeckConfig source, {required String name}) => DeckConfigsCompanion.insert(

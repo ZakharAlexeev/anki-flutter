@@ -99,7 +99,7 @@ void main() {
 
     final graduated = await (db.select(db.cards)..where((card) => card.deckId.equals(deckId))).getSingle();
     expect(graduated.queue, CardQueue.review);
-    expect(graduated.ivl, 1); // default graduating interval
+    expect(graduated.ivl, greaterThanOrEqualTo(1)); // determined by FSRS-6 memory state
     expect(graduated.reps, 2);
 
     await tester.pumpWidget(const SizedBox.shrink());

@@ -15,6 +15,21 @@ class CardBrowserPage {
   final bool hasMore;
 }
 
+class DuplicateNoteMatch {
+  const DuplicateNoteMatch({required this.note, required this.deckNames, required this.firstField});
+
+  final Note note;
+  final List<String> deckNames;
+  final String firstField;
+}
+
+class DuplicateGroup {
+  const DuplicateGroup({required this.normalizedValue, required this.matches});
+
+  final String normalizedValue;
+  final List<DuplicateNoteMatch> matches;
+}
+
 class NoteRepository {
   NoteRepository(this._db, this._decks, this._notetypes);
 
@@ -68,6 +83,64 @@ class NoteRepository {
       hasMore: hasMore,
     );
   }
+
+  /// Finds Anki-style duplicates by the normalized first field, scoped to a
+  /// note type. HTML, sound markers, case and repeated whitespace do not make
+  /// otherwise identical notes appear unique.
+  Future<List<DuplicateGroup>> findDuplicates({int? deckId}) async {
+    final select = _db.select(_db.notes).join([
+      innerJoin(_db.cards, _db.cards.noteId.equalsExp(_db.notes.id)),
+      innerJoin(_db.decks, _db.decks.id.equalsExp(_db.cards.deckId)),
+    ]);
+    if (deckId != null) select.where(_db.cards.deckId.equals(deckId));
+    final rows = await select.get();
+
+    final byNote = <int, (Note, Set<String>)>{};
+    for (final row in rows) {
+      final note = row.readTable(_db.notes);
+      final deck = row.readTable(_db.decks);
+      final existing = byNote[note.id];
+      if (existing == null) {
+        byNote[note.id] = (note, {deck.name});
+      } else {
+        existing.$2.add(deck.name);
+      }
+    }
+
+    final groups = <String, List<DuplicateNoteMatch>>{};
+    for (final entry in byNote.values) {
+      final fields = decodeFields(entry.$1.fieldsJson);
+      if (fields.isEmpty) continue;
+      final normalized = _normalizeDuplicateField(fields.first);
+      if (normalized.isEmpty) continue;
+      final key = '${entry.$1.notetypeId}\u0000$normalized';
+      groups.putIfAbsent(key, () => []).add(DuplicateNoteMatch(
+            note: entry.$1,
+            deckNames: entry.$2.toList()..sort(),
+            firstField: fields.first.replaceAll(RegExp('<[^>]*>'), '').trim(),
+          ));
+    }
+
+    final result = [
+      for (final entry in groups.entries)
+        if (entry.value.length > 1)
+          DuplicateGroup(
+            normalizedValue: entry.key.substring(entry.key.indexOf('\u0000') + 1),
+            matches: entry.value..sort((a, b) => a.note.id.compareTo(b.note.id)),
+          ),
+    ];
+    result.sort((a, b) => a.normalizedValue.compareTo(b.normalizedValue));
+    return result;
+  }
+
+  String _normalizeDuplicateField(String value) => value
+      .replaceAll(RegExp(r'\[sound:[^\]]+\]', caseSensitive: false), '')
+      .replaceAll(RegExp('<[^>]*>'), ' ')
+      .replaceAll('&nbsp;', ' ')
+      .replaceAll('&amp;', '&')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim()
+      .toLowerCase();
 
   /// Creates a note and one card per template of its note type, all in the
   /// given deck, using that deck's starting ease.
