@@ -155,6 +155,14 @@ void main() {
         throwsStateError,
       );
     });
+
+    test('invalid legacy timestamp falls back instead of creating an invalid DateTime', () {
+      final corrupted = established().copyWith(lastReviewedAt: 9216700417926652);
+      expect(
+        () => scheduler.previewOutcomes(card: corrupted, config: config, now: now, today: today),
+        returnsNormally,
+      );
+    });
   });
 
   group('day rollover', () {
