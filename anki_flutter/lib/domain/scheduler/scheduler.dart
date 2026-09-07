@@ -11,6 +11,11 @@ import 'models.dart';
 class Scheduler {
   const Scheduler();
 
+  // The app stores learning due dates as epoch seconds. Keep a deliberately
+  // wide bound (year ~275760, Dart's DateTime limit) so an invalid value from
+  // a legacy/imported card can never be multiplied into an invalid DateTime.
+  static const _maxEpochSeconds = 8640000000000;
+
   AnswerOutcome answerCard({
     required CardSchedState card,
     required DeckSchedConfig config,
@@ -84,7 +89,8 @@ class Scheduler {
     required DeckSchedConfig config,
     required List<SchedulingReview> reviews,
   }) {
-    if (reviews.isEmpty) return card;
+    final validReviews = reviews.where((review) => _isValidEpochSeconds(review.reviewedAt)).toList();
+    if (validReviews.isEmpty) return card;
     final scheduler = fsrs.Scheduler(
       parameters: config.fsrsParameters,
       desiredRetention: config.desiredRetention,
@@ -93,7 +99,7 @@ class Scheduler {
       maximumInterval: config.maximumIntervalDays,
       enableFuzzing: false,
     );
-    final ordered = [...reviews]..sort((a, b) => a.reviewedAt.compareTo(b.reviewedAt));
+    final ordered = [...validReviews]..sort((a, b) => a.reviewedAt.compareTo(b.reviewedAt));
     var reconstructed = fsrs.Card(
       cardId: 0,
       state: fsrs.State.learning,
@@ -129,9 +135,9 @@ class Scheduler {
     final stability = card.stability ?? (isEstablished ? max(0.1, card.ivl.toDouble()) : null);
     final difficulty = card.difficulty ??
         (isEstablished ? (10 - ((card.ease / 1000) - 1.3) * 4).clamp(1.0, 10.0).toDouble() : null);
-    final lastReview = card.lastReviewedAt == null
-        ? (isEstablished ? nowUtc.subtract(Duration(days: max(1, card.ivl))) : null)
-        : DateTime.fromMillisecondsSinceEpoch(card.lastReviewedAt! * 1000, isUtc: true);
+    final lastReview = card.lastReviewedAt != null && _isValidEpochSeconds(card.lastReviewedAt!)
+        ? DateTime.fromMillisecondsSinceEpoch(card.lastReviewedAt! * 1000, isUtc: true)
+        : (isEstablished ? nowUtc.subtract(Duration(days: max(1, card.ivl))) : null);
 
     return fsrs.Card(
       cardId: 0,
@@ -162,7 +168,7 @@ class Scheduler {
         : previous.ivl;
     final due = reviewed.state == fsrs.State.review
         ? today + interval
-        : reviewed.due.millisecondsSinceEpoch ~/ 1000;
+        : _learningDueOrFallback(reviewed.due, nowUtc);
     final lapsed = previous.queue == CardQueue.review && rating == Rating.again;
     final lapses = previous.lapses + (lapsed ? 1 : 0);
     final becameLeech = lapsed && config.leechThreshold > 0 && lapses % config.leechThreshold == 0;
@@ -185,6 +191,18 @@ class Scheduler {
   }
 
   List<Duration> _durations(List<int> minutes) => [for (final value in minutes) Duration(minutes: value)];
+
+  int _learningDueOrFallback(DateTime due, DateTime nowUtc) {
+    final epochSeconds = due.millisecondsSinceEpoch ~/ 1000;
+    // FSRS should always return a real timestamp. If a legacy/malformed state
+    // produces a sentinel-like value, keep the card available soon rather
+    // than storing a date that the UI cannot render.
+    return _isValidEpochSeconds(epochSeconds)
+        ? epochSeconds
+        : nowUtc.add(const Duration(minutes: 1)).millisecondsSinceEpoch ~/ 1000;
+  }
+
+  bool _isValidEpochSeconds(int value) => value >= 0 && value <= _maxEpochSeconds;
 
   fsrs.Rating _toFsrsRating(Rating rating) => switch (rating) {
         Rating.again => fsrs.Rating.again,
