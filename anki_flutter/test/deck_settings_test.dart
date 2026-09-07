@@ -20,7 +20,7 @@ void main() {
     await db.ensureSeeded();
     decks = DeckRepository(db);
 
-    final deck = (await db.select(db.decks).get()).single;
+    final deck = (await db.select(db.decks).get()).firstWhere((deck) => deck.name == 'Default');
     deckId = deck.id;
   });
 

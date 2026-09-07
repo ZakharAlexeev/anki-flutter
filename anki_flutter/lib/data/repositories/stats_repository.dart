@@ -88,9 +88,14 @@ class StatsRepository {
     final cards = await cardsQuery.get();
     final cardIds = cards.map((c) => c.id).toSet();
 
-    final revlogQuery = _db.select(_db.revLog);
-    final allRevlog = await revlogQuery.get();
-    final revlog = deckId == null ? allRevlog : allRevlog.where((r) => cardIds.contains(r.cardId)).toList();
+    final List<RevLogData> revlog;
+    if (deckId == null) {
+      revlog = await _db.select(_db.revLog).get();
+    } else if (cardIds.isEmpty) {
+      revlog = const [];
+    } else {
+      revlog = await (_db.select(_db.revLog)..where((r) => r.cardId.isIn(cardIds))).get();
+    }
 
     return DeckStats(
       today: _todayStats(revlog, n, createdAt, meta.rolloverHour),
@@ -190,7 +195,7 @@ class StatsRepository {
     final buckets = <int, int>{};
     for (final c in cards) {
       if (c.queue != CardQueue.review) continue;
-      final pct = (c.ease / 100).round(); // e.g. 2500 -> 25 (250%)
+      final pct = (c.ease / 10).round(); // e.g. 2500 permille -> 250%
       final bucket = (pct / 10).floor() * 10;
       buckets[bucket] = (buckets[bucket] ?? 0) + 1;
     }

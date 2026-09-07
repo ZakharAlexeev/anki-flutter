@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:archive/archive.dart';
+import 'package:archive/archive_io.dart';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart';
 import 'package:path/path.dart' as p;
@@ -71,8 +71,10 @@ class ApkgExporter {
     final tempSqlite = File(p.join(tempDir.path, 'anki_export_${DateTime.now().microsecondsSinceEpoch}.sqlite'));
     if (await tempSqlite.exists()) await tempSqlite.delete();
 
+    File? mediaIndexFile;
     final db = sqlite.sqlite3.open(tempSqlite.path);
-    List<int> sqliteBytes;
+    Object? collectionError;
+    StackTrace? collectionStack;
     try {
       _createSchema(db);
       _writeCol(
@@ -89,30 +91,48 @@ class ApkgExporter {
       final configByDeck = {for (final d in decks) d.id: deckConfigs.firstWhere((c) => c.id == d.deckConfigId)};
       _writeCards(db, cards, configByDeck);
       _writeRevlog(db, revlog);
+    } catch (error, stack) {
+      collectionError = error;
+      collectionStack = stack;
     } finally {
       db.close();
     }
-    sqliteBytes = await tempSqlite.readAsBytes();
-    await tempSqlite.delete();
-
-    yield const ExportProgress('Медиафайлы', 0, 1);
-    final mediaFiles = await _collectMedia(notes);
-
-    yield const ExportProgress('Упаковка архива', 0, 1);
-    final archive = Archive();
-    archive.addFile(ArchiveFile('collection.anki2', sqliteBytes.length, sqliteBytes));
-
-    final mediaIndex = <String, String>{};
-    for (var i = 0; i < mediaFiles.length; i++) {
-      mediaIndex['$i'] = p.basename(mediaFiles[i].path);
-      final bytes = await mediaFiles[i].readAsBytes();
-      archive.addFile(ArchiveFile('$i', bytes.length, bytes));
+    if (collectionError != null) {
+      if (await tempSqlite.exists()) await tempSqlite.delete();
+      Error.throwWithStackTrace(collectionError, collectionStack!);
     }
-    final mediaJson = utf8.encode(jsonEncode(mediaIndex));
-    archive.addFile(ArchiveFile('media', mediaJson.length, mediaJson));
+    List<File> mediaFiles = const [];
+    try {
+      yield const ExportProgress('Медиафайлы', 0, 1);
+      mediaFiles = await _collectMedia(notes);
 
-    final zipBytes = ZipEncoder().encodeBytes(archive);
-    await File(outputPath).writeAsBytes(zipBytes, flush: true);
+      yield const ExportProgress('Упаковка архива', 0, 1);
+      final mediaIndex = <String, String>{};
+      for (var i = 0; i < mediaFiles.length; i++) {
+        mediaIndex['$i'] = p.basename(mediaFiles[i].path);
+      }
+      mediaIndexFile = File(p.join(tempDir.path, 'anki_media_${DateTime.now().microsecondsSinceEpoch}.json'));
+      await mediaIndexFile.writeAsString(jsonEncode(mediaIndex), flush: true);
+
+      final encoder = ZipFileEncoder();
+      encoder.create(outputPath);
+      try {
+        await encoder.addFile(tempSqlite, 'collection.anki2');
+        for (var i = 0; i < mediaFiles.length; i++) {
+          await encoder.addFile(mediaFiles[i], '$i');
+        }
+        await encoder.addFile(mediaIndexFile, 'media');
+      } finally {
+        await encoder.close();
+      }
+    } catch (_) {
+      final partial = File(outputPath);
+      if (await partial.exists()) await partial.delete();
+      rethrow;
+    } finally {
+      if (await tempSqlite.exists()) await tempSqlite.delete();
+      if (mediaIndexFile != null && await mediaIndexFile.exists()) await mediaIndexFile.delete();
+    }
 
     yield ExportProgress(
       'Готово: ${notes.length} заметок, ${cards.length} карточек, ${mediaFiles.length} медиафайлов',
@@ -179,7 +199,10 @@ class ApkgExporter {
       models[nt.id.toString()] = {
         'id': nt.id,
         'name': nt.name,
-        'type': 0,
+        'type': templates.any((template) =>
+                template.questionFormat.contains('{{cloze:') || template.answerFormat.contains('{{cloze:'))
+            ? 1
+            : 0,
         'mod': nowSec,
         'usn': 0,
         'sortf': nt.sortFieldIndex,
@@ -446,9 +469,18 @@ class ApkgExporter {
     }
 
     final files = <File>[];
+    final seenPaths = <String>{};
+    final mediaRoot = p.normalize(await mediaDir.resolveSymbolicLinks());
     for (final name in referenced) {
-      final f = File(p.join(mediaDir.path, name));
-      if (await f.exists()) files.add(f);
+      final uri = Uri.tryParse(name);
+      if (name.isEmpty || p.isAbsolute(name) || p.basename(name) != name || (uri?.hasScheme ?? false)) continue;
+      final candidatePath = p.normalize(p.join(mediaDir.path, name));
+      if (!p.isWithin(p.normalize(mediaDir.path), candidatePath)) continue;
+      final file = File(candidatePath);
+      if (!await file.exists()) continue;
+      final realPath = p.normalize(await file.resolveSymbolicLinks());
+      if (!p.isWithin(mediaRoot, realPath) || !seenPaths.add(realPath)) continue;
+      files.add(File(realPath));
     }
     return files;
   }

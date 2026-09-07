@@ -6,6 +6,13 @@ enum CardQueue { newCard, learning, review, relearning, suspended }
 
 enum Rating { again, hard, good, easy }
 
+class SchedulingReview {
+  const SchedulingReview({required this.reviewedAt, required this.rating});
+
+  final int reviewedAt;
+  final Rating rating;
+}
+
 /// Scheduling parameters for a deck (mirrors Anki's DeckConfig "new"/"rev"/
 /// "lapse" groups).
 class DeckSchedConfig {
@@ -21,6 +28,8 @@ class DeckSchedConfig {
   final int leechThreshold; // lapses count that triggers a leech, default 8
   final int maximumIntervalDays; // default 36500
   final int minEase; // ease floor * 1000, default 1300 (130%)
+  final List<double> fsrsParameters;
+  final double desiredRetention;
 
   const DeckSchedConfig({
     this.learningStepsMin = const [1, 10],
@@ -35,6 +44,30 @@ class DeckSchedConfig {
     this.leechThreshold = 8,
     this.maximumIntervalDays = 36500,
     this.minEase = 1300,
+    this.fsrsParameters = const [
+      0.2172,
+      1.1771,
+      3.2602,
+      16.1507,
+      7.0114,
+      0.57,
+      2.0966,
+      0.0069,
+      1.5261,
+      0.112,
+      1.0178,
+      1.849,
+      0.1133,
+      0.3127,
+      2.2934,
+      0.2191,
+      3.0004,
+      0.7536,
+      0.3332,
+      0.1437,
+      0.2,
+    ],
+    this.desiredRetention = 0.9,
   });
 }
 
@@ -49,6 +82,9 @@ class CardSchedState {
   final int reps;
   final int lapses;
   final int stepIndex;
+  final double? stability;
+  final double? difficulty;
+  final int? lastReviewedAt;
 
   const CardSchedState({
     required this.queue,
@@ -58,6 +94,9 @@ class CardSchedState {
     this.reps = 0,
     this.lapses = 0,
     this.stepIndex = 0,
+    this.stability,
+    this.difficulty,
+    this.lastReviewedAt,
   });
 
   factory CardSchedState.newCard({required int due, required int startingEase}) {
@@ -72,6 +111,10 @@ class CardSchedState {
     int? reps,
     int? lapses,
     int? stepIndex,
+    double? stability,
+    double? difficulty,
+    int? lastReviewedAt,
+    bool clearMemoryState = false,
   }) {
     return CardSchedState(
       queue: queue ?? this.queue,
@@ -81,6 +124,9 @@ class CardSchedState {
       reps: reps ?? this.reps,
       lapses: lapses ?? this.lapses,
       stepIndex: stepIndex ?? this.stepIndex,
+      stability: clearMemoryState ? null : (stability ?? this.stability),
+      difficulty: clearMemoryState ? null : (difficulty ?? this.difficulty),
+      lastReviewedAt: lastReviewedAt ?? this.lastReviewedAt,
     );
   }
 }

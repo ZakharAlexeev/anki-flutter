@@ -26,12 +26,14 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
         onCreate: (m) async {
           await m.createAll();
+          await _createPerformanceIndexes();
+          await _createFsrsTables();
         },
         onUpgrade: (m, from, to) async {
           if (from < 2) {
@@ -52,6 +54,8 @@ class AppDatabase extends _$AppDatabase {
               'UPDATE notes SET created_at = created_at / 1000 WHERE created_at > $microsecondThreshold',
             );
           }
+          if (from < 3) await _createPerformanceIndexes();
+          if (from < 4) await _createFsrsTables();
         },
         beforeOpen: (details) async {
           // SQLite defaults foreign-key enforcement to OFF for backwards
@@ -63,6 +67,34 @@ class AppDatabase extends _$AppDatabase {
           await customStatement('PRAGMA foreign_keys = ON');
         },
       );
+
+  Future<void> _createPerformanceIndexes() async {
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_cards_deck_queue_due ON cards(deck_id, queue, due)');
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_cards_note_template ON cards(note_id, template_ord)');
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_revlog_card_reviewed ON rev_log(card_id, reviewed_at)');
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_revlog_reviewed ON rev_log(reviewed_at)');
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_fields_notetype_ord ON notetype_fields(notetype_id, ord)');
+    await customStatement('CREATE INDEX IF NOT EXISTS idx_templates_notetype_ord ON notetype_templates(notetype_id, ord)');
+  }
+
+  /// Kept as raw companion tables so the Anki-shaped card/deck schema stays
+  /// stable while FSRS-specific state can evolve independently.
+  Future<void> _createFsrsTables() async {
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS fsrs_card_state (
+        card_id INTEGER PRIMARY KEY REFERENCES cards(id) ON DELETE CASCADE,
+        stability REAL NOT NULL,
+        difficulty REAL NOT NULL
+      )
+    ''');
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS fsrs_deck_options (
+        deck_config_id INTEGER PRIMARY KEY REFERENCES deck_configs(id) ON DELETE CASCADE,
+        desired_retention REAL NOT NULL DEFAULT 0.9
+          CHECK(desired_retention >= 0.70 AND desired_retention <= 0.99)
+      )
+    ''');
+  }
 
   /// Ensures a single [CollectionMeta] row and the built-in starter content
   /// exist. Safe to call on every startup.

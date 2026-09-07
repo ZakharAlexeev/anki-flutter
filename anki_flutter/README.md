@@ -7,9 +7,10 @@ with Anki's `.apkg` export format.
 
 - Deck / note type / card CRUD, with a "Basic" and "Basic (and reversed
   card)" note type seeded on first launch.
-- A scheduler modeled on Anki's classic SM-2-derived algorithm: learning /
-  relearning steps, graduating and easy intervals, ease factor, lapses,
-  leech detection, interval fuzz, and per-deck daily new/review limits.
+- FSRS-6 scheduling with Anki-style learning/relearning steps, per-deck
+  desired retention, stability/difficulty memory state, interval fuzz,
+  leech detection, and daily new/review limits. Existing review history is
+  replayed when migrating cards that predate FSRS state storage.
 - `.apkg` import and export, including full scheduling state (interval,
   ease, due date, lapses, review history) - not just the notes/cards
   themselves. Import supports both the legacy JSON-based collection schema
@@ -18,6 +19,8 @@ with Anki's `.apkg` export format.
   it.
 - A statistics screen (today's counts, review forecast/history, card-status
   and interval/ease distributions) per deck or for the whole collection.
+- Collection-wide duplicate search using the normalized first field, with
+  safe removal of duplicate notes and their scheduling history.
 - Card template rendering: field substitution, field modifiers
   (`{{text:}}`, `{{furigana:}}`, `{{hint:}}`, ...), conditional sections,
   the note type's own CSS, and local media (images inlined, audio flagged).

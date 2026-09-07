@@ -3,7 +3,7 @@ name: Build unsigned iOS IPA
 on:
   workflow_dispatch: {}
   push:
-    branches: [main]
+    branches: [main, codex/audit-hardening]
     paths:
       - "anki_flutter/**"
       - ".github/workflows/ios-ipa.yml"
@@ -30,17 +30,7 @@ jobs:
 
       - name: Build Runner.app without code signing
         run: |
-          xcodebuild \
-            -workspace ios/Runner.xcworkspace \
-            -scheme Runner \
-            -configuration Release \
-            -sdk iphoneos \
-            -derivedDataPath build/ios_unsigned \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY="" \
-            DEVELOPMENT_TEAM="" \
-            build
+          xcodebuild             -workspace ios/Runner.xcworkspace             -scheme Runner             -configuration Release             -sdk iphoneos             -derivedDataPath build/ios_unsigned             CODE_SIGNING_ALLOWED=NO             CODE_SIGNING_REQUIRED=NO             CODE_SIGN_IDENTITY=""             DEVELOPMENT_TEAM=""             build
 
       - name: Package unsigned .ipa
         run: |

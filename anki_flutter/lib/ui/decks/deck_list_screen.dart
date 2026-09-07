@@ -5,6 +5,7 @@ import '../../data/db/database.dart';
 import '../../data/repositories/deck_repository.dart';
 import '../../data/repositories/study_repository.dart';
 import '../browser/card_browser_screen.dart';
+import '../browser/duplicate_search_screen.dart';
 import '../editor/note_editor_screen.dart';
 import '../export/export_progress_dialog.dart';
 import '../import/import_screen.dart';
@@ -33,6 +34,13 @@ class DeckListScreen extends StatelessWidget {
           ],
         ),
         actions: [
+          _TopAction(
+            icon: Icons.content_copy_outlined,
+            tooltip: 'Найти дубликаты',
+            onPressed: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const DuplicateSearchScreen())),
+          ),
+          const SizedBox(width: AppSpacing.xs),
           _TopAction(
             icon: Icons.query_stats_outlined,
             tooltip: 'Статистика',
@@ -254,6 +262,11 @@ class _DeckTileState extends State<_DeckTile> {
     }
   }
 
+  void _refreshCounts() {
+    if (!mounted) return;
+    setState(() => _counts = context.read<StudyRepository>().counts(widget.deck.id));
+  }
+
   @override
   Widget build(BuildContext context) {
     final deck = widget.deck;
@@ -272,8 +285,11 @@ class _DeckTileState extends State<_DeckTile> {
           borderRadius: BorderRadius.circular(kAppRadius),
           child: InkWell(
             borderRadius: BorderRadius.circular(kAppRadius),
-            onTap: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => StudyScreen(deckId: deck.id, deckName: deck.name))),
+            onTap: () async {
+              await Navigator.of(context)
+                  .push(MaterialPageRoute(builder: (_) => StudyScreen(deckId: deck.id, deckName: deck.name)));
+              _refreshCounts();
+            },
             child: Container(
               padding: const EdgeInsets.fromLTRB(AppSpacing.md, 18, AppSpacing.sm, 18),
               decoration: BoxDecoration(

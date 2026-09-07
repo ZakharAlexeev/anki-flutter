@@ -60,18 +60,25 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     if (fieldValues.every((v) => v.trim().isEmpty)) return;
 
     setState(() => _saving = true);
-    await context.read<NoteRepository>().createNote(
-          notetypeId: notetype.id,
-          deckId: deck.id,
-          fields: fieldValues,
-          tags: _tagsController.text.trim(),
-        );
-    if (!mounted) return;
-    setState(() => _saving = false);
-    for (final c in _fieldControllers.values) {
-      c.clear();
+    try {
+      await context.read<NoteRepository>().createNote(
+            notetypeId: notetype.id,
+            deckId: deck.id,
+            fields: fieldValues,
+            tags: _tagsController.text.trim(),
+          );
+      if (!mounted) return;
+      for (final c in _fieldControllers.values) {
+        c.clear();
+      }
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Карточка добавлена')));
+    } on Object catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось добавить карточку: $error')));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Карточка добавлена')));
   }
 
   @override

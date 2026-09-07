@@ -93,23 +93,41 @@ class NotetypeRepository {
   /// Creates the classic "Basic" and "Basic (and reversed card)" note types
   /// on first launch, mirroring a fresh Anki profile.
   Future<void> ensureSeeded() async {
-    final any = await (_db.select(_db.notetypes)..limit(1)).getSingleOrNull();
-    if (any != null) return;
+    final basic = await (_db.select(_db.notetypes)..where((notetype) => notetype.name.equals('Basic'))).getSingleOrNull();
+    if (basic == null) {
+      await createNotetype(
+        name: 'Basic',
+        fieldNames: const ['Front', 'Back'],
+        templates: const [
+          TemplateSpec(
+            name: 'Card 1',
+            questionFormat: '{{Front}}',
+            answerFormat: '{{FrontSide}}<hr id="answer">{{Back}}',
+          ),
+        ],
+      );
+    }
 
-    await createNotetype(
-      name: 'Basic',
-      fieldNames: const ['Front', 'Back'],
-      templates: const [
-        TemplateSpec(name: 'Card 1', questionFormat: '{{Front}}', answerFormat: '{{FrontSide}}<hr id="answer">{{Back}}'),
-      ],
-    );
-    await createNotetype(
-      name: 'Basic (and reversed card)',
-      fieldNames: const ['Front', 'Back'],
-      templates: const [
-        TemplateSpec(name: 'Card 1', questionFormat: '{{Front}}', answerFormat: '{{FrontSide}}<hr id="answer">{{Back}}'),
-        TemplateSpec(name: 'Card 2', questionFormat: '{{Back}}', answerFormat: '{{FrontSide}}<hr id="answer">{{Front}}'),
-      ],
-    );
+    final reversed = await (_db.select(_db.notetypes)
+          ..where((notetype) => notetype.name.equals('Basic (and reversed card)')))
+        .getSingleOrNull();
+    if (reversed == null) {
+      await createNotetype(
+        name: 'Basic (and reversed card)',
+        fieldNames: const ['Front', 'Back'],
+        templates: const [
+          TemplateSpec(
+            name: 'Card 1',
+            questionFormat: '{{Front}}',
+            answerFormat: '{{FrontSide}}<hr id="answer">{{Back}}',
+          ),
+          TemplateSpec(
+            name: 'Card 2',
+            questionFormat: '{{Back}}',
+            answerFormat: '{{FrontSide}}<hr id="answer">{{Front}}',
+          ),
+        ],
+      );
+    }
   }
 }

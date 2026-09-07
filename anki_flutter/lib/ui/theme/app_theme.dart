@@ -59,11 +59,12 @@ class AppTheme {
     final border = isDark ? AppColors.darkBorder : AppColors.lightBorder;
     final text = isDark ? AppColors.darkText : AppColors.lightText;
     final muted = isDark ? AppColors.darkMuted : AppColors.lightMuted;
+    final interactiveAccent = isDark ? const Color(0xFF75B8A2) : AppColors.accent;
 
     final colorScheme = ColorScheme.fromSeed(
       seedColor: AppColors.accent,
       brightness: brightness,
-      primary: AppColors.accent,
+      primary: interactiveAccent,
       surface: surface,
       error: AppColors.again,
     ).copyWith(
@@ -153,7 +154,7 @@ class AppTheme {
         contentPadding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 15),
         hintStyle: TextStyle(color: muted.withValues(alpha: 0.82)),
         labelStyle: TextStyle(color: muted),
-        floatingLabelStyle: const TextStyle(color: AppColors.accentStrong, fontWeight: FontWeight.w600),
+        floatingLabelStyle: TextStyle(color: interactiveAccent, fontWeight: FontWeight.w600),
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(kAppRadiusSmall)),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kAppRadiusSmall),
@@ -161,7 +162,7 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kAppRadiusSmall),
-          borderSide: const BorderSide(color: AppColors.accent, width: 1.5),
+          borderSide: BorderSide(color: interactiveAccent, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(kAppRadiusSmall),
@@ -170,7 +171,7 @@ class AppTheme {
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          backgroundColor: AppColors.accent,
+          backgroundColor: interactiveAccent,
           foregroundColor: Colors.white,
           disabledBackgroundColor: AppColors.accent.withValues(alpha: 0.35),
           elevation: 0,
@@ -193,7 +194,7 @@ class AppTheme {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: AppColors.accentStrong,
+          foregroundColor: interactiveAccent,
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
           shape: buttonShape,
           textStyle: textTheme.labelLarge,
@@ -208,7 +209,7 @@ class AppTheme {
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: AppColors.accent,
+        backgroundColor: interactiveAccent,
         foregroundColor: Colors.white,
         elevation: 1,
         focusElevation: 1,
@@ -243,7 +244,7 @@ class AppTheme {
         insetPadding: const EdgeInsets.all(AppSpacing.md),
         shape: buttonShape,
       ),
-      progressIndicatorTheme: const ProgressIndicatorThemeData(color: AppColors.accent),
+      progressIndicatorTheme: ProgressIndicatorThemeData(color: interactiveAccent),
       extensions: [
         AppSemanticColors(
           border: border,

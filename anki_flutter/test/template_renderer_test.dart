@@ -83,6 +83,30 @@ void main() {
     });
   });
 
+  group('cloze cards', () {
+    test('hides only the active deletion on the question and reveals it on the answer', () {
+      final rendered = renderCard(
+        template: _template(qfmt: '{{cloze:Text}}', afmt: '{{cloze:Text}}'),
+        fieldDefs: [_field(0, 'Text')],
+        fieldValues: ['Paris is the {{c1::capital::city}} of {{c2::France}}.'],
+      );
+      expect(rendered.questionHtml, 'Paris is the <span class="cloze">[city]</span> of France.');
+      expect(rendered.answerHtml, 'Paris is the <span class="cloze">capital</span> of France.');
+    });
+
+    test('card ordinal selects the corresponding cloze number', () {
+      final rendered = renderCard(
+        template: _template(qfmt: '{{cloze:Text}}', afmt: '{{cloze:Text}}'),
+        fieldDefs: [_field(0, 'Text')],
+        fieldValues: ['{{c1::One}} and {{c2::Two}}'],
+        cardOrd: 1,
+      );
+      expect(rendered.questionHtml, 'One and <span class="cloze">[…]</span>');
+      expect(rendered.answerHtml, 'One and <span class="cloze">Two</span>');
+      expect(clozeCardOrds(['{{c1::One}} and {{c2::Two}}']), {0, 1});
+    });
+  });
+
   group('special fields', () {
     test('{{Tags}}/{{Type}}/{{Deck}}/{{Card}} resolve to the values passed to renderCard', () {
       final rendered = renderCard(
