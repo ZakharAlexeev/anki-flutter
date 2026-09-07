@@ -339,6 +339,9 @@ class _StudyScreenState extends State<StudyScreen> {
 
   String _intervalLabel(CardSchedState state) {
     if (state.queue == CardQueue.learning || state.queue == CardQueue.relearning) {
+      // Learning due values are stored in epoch seconds. A malformed legacy
+      // value must not turn a harmless button preview into a DateTime crash.
+      if (state.due < 0 || state.due > 8640000000000) return 'скоро';
       final now = DateTime.now();
       final dueAt = DateTime.fromMillisecondsSinceEpoch(state.due * 1000);
       final minutes = dueAt.difference(now).inMinutes.clamp(1, 1 << 30);
