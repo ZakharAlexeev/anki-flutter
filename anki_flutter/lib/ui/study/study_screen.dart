@@ -291,6 +291,11 @@ class _StudyScreenState extends State<StudyScreen> {
 
   String _intervalLabel(CardSchedState state) {
     if (state.queue == CardQueue.learning || state.queue == CardQueue.relearning) {
+      // Learning/relearning due values are Unix timestamps in seconds. A
+      // malformed value from an old database or import must never be
+      // multiplied into an out-of-range Dart DateTime.
+      const maxEpochSeconds = 8640000000000;
+      if (state.due < 0 || state.due > maxEpochSeconds) return 'скоро';
       final now = DateTime.now();
       final dueAt = DateTime.fromMillisecondsSinceEpoch(state.due * 1000);
       final minutes = dueAt.difference(now).inMinutes.clamp(1, 1 << 30);
