@@ -1,7 +1,7 @@
-; Inno Setup script for AnkiFlutter (Windows desktop build).
+; Inno Setup script for Anki (Windows desktop build).
 ; Bundles the Visual C++ Redistributable and installs it silently so the
 ; user never has to download or run anything separately.
-#define MyAppName "AnkiFlutter"
+#define MyAppName "Anki"
 #define MyAppVersion "1.0.0"
 #define MyAppExeName "anki_flutter.exe"
 #define ReleaseDir "..\build\windows\x64\runner\Release"
@@ -15,7 +15,7 @@ DefaultDirName={localappdata}\Programs\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=output
-OutputBaseFilename=AnkiFlutterSetup
+OutputBaseFilename=AnkiSetup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern

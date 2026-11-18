@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "com.ankiflutter" "\0"
-            VALUE "FileDescription", "anki_flutter" "\0"
+            VALUE "FileDescription", "Anki" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "anki_flutter" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 com.ankiflutter. All rights reserved." "\0"
             VALUE "OriginalFilename", "anki_flutter.exe" "\0"
-            VALUE "ProductName", "anki_flutter" "\0"
+            VALUE "ProductName", "Anki" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
