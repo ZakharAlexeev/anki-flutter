@@ -1,12 +1,16 @@
+import 'dart:io';
 import 'dart:math';
 
+import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 
 import '../../data/db/database.dart';
 import '../../data/media/media_resolver.dart';
+import '../../data/media/pronunciation_service.dart';
 import '../../data/repositories/deck_repository.dart';
 import '../../data/repositories/note_repository.dart';
 import '../../data/repositories/notetype_repository.dart';
@@ -44,8 +48,15 @@ class _StudyScreenState extends State<StudyScreen> {
   String? _resolvedAnswerHtml;
   Map<Rating, CardSchedState>? _previews;
   DateTime? _cardShownAt;
+  List<String> _questionSounds = const [];
+  List<String> _answerSounds = const [];
   final _media = MediaResolver();
   final _focusNode = FocusNode();
+
+  // Created on first use, so screens (and tests) without audio never touch
+  // the platform audio plugin.
+  AudioPlayer? _player;
+  int _playToken = 0;
 
   StudyRepository get _study => context.read<StudyRepository>();
   NoteRepository get _notes => context.read<NoteRepository>();
@@ -59,8 +70,37 @@ class _StudyScreenState extends State<StudyScreen> {
 
   @override
   void dispose() {
+    _playToken++;
+    _player?.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  List<String> get _currentSounds => _showAnswer ? _answerSounds : _questionSounds;
+
+  /// Plays [files] one after another, like Anki. Starting another playback
+  /// (next card, replay tap) cancels whatever is still queued.
+  Future<void> _play(List<String> files) async {
+    final token = ++_playToken;
+    if (files.isEmpty) {
+      await _player?.stop();
+      return;
+    }
+    final dir = await PronunciationService.mediaDirectory();
+    final player = _player ??= AudioPlayer();
+    for (final name in files) {
+      final file = File(p.join(dir.path, p.basename(name)));
+      if (token != _playToken || !mounted) return;
+      if (!await file.exists()) continue;
+      try {
+        final done = player.onPlayerComplete.first;
+        await player.stop();
+        await player.play(DeviceFileSource(file.path));
+        await done.timeout(const Duration(seconds: 30));
+      } catch (_) {
+        // A missing codec or a broken file shouldn't interrupt studying.
+      }
+    }
   }
 
   Future<List<CardEntry>> _fetchQueue() {
@@ -118,6 +158,7 @@ class _StudyScreenState extends State<StudyScreen> {
     final resolvedQuestion = await _media.resolve(rendered.questionHtml);
     final resolvedAnswer = await _media.resolve(rendered.answerHtml);
     if (!mounted) return;
+    final questionSounds = MediaResolver.soundFiles(rendered.questionHtml);
     setState(() {
       _rendered = rendered;
       _cardDeckName = deckName;
@@ -125,13 +166,19 @@ class _StudyScreenState extends State<StudyScreen> {
       _resolvedAnswerHtml = resolvedAnswer;
       _previews = previews;
       _cardShownAt = DateTime.now();
+      _questionSounds = questionSounds;
+      _answerSounds = MediaResolver.soundFiles(rendered.answerHtml);
     });
+    _play(questionSounds);
   }
 
   void _reveal() {
     if (_showAnswer || _rendered == null) return;
     HapticFeedback.selectionClick();
     setState(() => _showAnswer = true);
+    // The answer usually repeats the question ({{FrontSide}}); only play
+    // what's new on this side, as Anki does.
+    _play([for (final s in _answerSounds) if (!_questionSounds.contains(s)) s]);
   }
 
   Future<void> _answer(Rating rating) async {
@@ -237,6 +284,7 @@ class _StudyScreenState extends State<StudyScreen> {
                         deckName: _cardDeckName ?? widget.deckName,
                         html: _showAnswer ? answerHtml : questionHtml,
                         css: rendered.css,
+                        onPlaySound: _currentSounds.isEmpty ? null : () => _play(_currentSounds),
                       ),
                     ),
                   ),
@@ -397,11 +445,14 @@ class _TopBar extends StatelessWidget {
 }
 
 class _CardFace extends StatelessWidget {
-  const _CardFace({super.key, required this.deckName, required this.html, required this.css});
+  const _CardFace({super.key, required this.deckName, required this.html, required this.css, this.onPlaySound});
 
   final String deckName;
   final String html;
   final String css;
+
+  /// Replays this side's audio; null when the side has none.
+  final VoidCallback? onPlaySound;
 
   @override
   Widget build(BuildContext context) {
@@ -416,9 +467,33 @@ class _CardFace extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.only(top: AppSpacing.md),
-            child: Text(deckName, style: TextStyle(fontSize: 12.5, color: colors.muted)),
+          SizedBox(
+            height: 48,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: AppSpacing.sm),
+                  child: Text(deckName, style: TextStyle(fontSize: 12.5, color: colors.muted)),
+                ),
+                if (onPlaySound != null)
+                  Positioned(
+                    right: AppSpacing.xs,
+                    top: AppSpacing.xs,
+                    child: CupertinoButton(
+                      padding: const EdgeInsets.all(AppSpacing.sm),
+                      minimumSize: const Size(44, 44),
+                      onPressed: onPlaySound,
+                      child: Icon(
+                        CupertinoIcons.speaker_2_fill,
+                        size: 22,
+                        color: context.accentForeground,
+                        semanticLabel: 'Произношение',
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
           Expanded(
             child: LayoutBuilder(

@@ -13,14 +13,15 @@ import 'package:path_provider/path_provider.dart';
 /// sources are inlined as base64 `data:` URIs read from this app's imported
 /// media directory (the same one `apkg_importer.dart`/`apkg_exporter.dart`
 /// read/write), which flutter_html already knows how to render out of the
-/// box. `[sound:name]` isn't real HTML at all, so it becomes a small visible
-/// "🔊 name" chip - not full playback (that needs an audio-player plugin
-/// across every target platform, out of scope here), but at least honest
-/// about there being an attachment instead of silently dropping it.
+/// box. `[sound:name]` isn't real HTML at all: it is removed from the HTML
+/// here and played by the study screen instead (see [soundFiles]).
 class MediaResolver {
   static final _imgSrc = RegExp('''(<img\\b[^>]*\\bsrc\\s*=\\s*["'])([^"']+)(["'])''', caseSensitive: false);
   static final _sound = RegExp(r'\[sound:([^\]]+)\]');
   static final _hasScheme = RegExp(r'^(https?|data|asset):');
+
+  /// The audio files a rendered card side refers to, in order.
+  static List<String> soundFiles(String html) => [for (final m in _sound.allMatches(html)) m.group(1)!.trim()];
 
   static const _mimeByExtension = {
     'jpg': 'image/jpeg',
@@ -37,28 +38,25 @@ class MediaResolver {
   Future<String> resolve(String html) async {
     if (!html.contains('<img') && !html.contains('[sound:')) return html;
 
-    final withAudioChips = html.replaceAllMapped(_sound, (m) {
-      final name = m.group(1)!;
-      return '<span title="$name">\u{1F50A} $name</span>';
-    });
+    final withoutSounds = html.replaceAll(_sound, '');
 
-    final matches = _imgSrc.allMatches(withAudioChips).toList();
-    if (matches.isEmpty) return withAudioChips;
+    final matches = _imgSrc.allMatches(withoutSounds).toList();
+    if (matches.isEmpty) return withoutSounds;
 
     final appDir = await getApplicationSupportDirectory();
     final mediaDir = Directory(p.join(appDir.path, 'media'));
-    if (!await mediaDir.exists()) return withAudioChips;
+    if (!await mediaDir.exists()) return withoutSounds;
 
     final buffer = StringBuffer();
     var last = 0;
     for (final m in matches) {
-      buffer.write(withAudioChips.substring(last, m.start));
+      buffer.write(withoutSounds.substring(last, m.start));
       final src = m.group(2)!;
       final dataUri = _hasScheme.hasMatch(src) ? null : await _asDataUri(mediaDir, src);
       buffer.write(dataUri == null ? m.group(0) : '${m.group(1)}$dataUri${m.group(3)}');
       last = m.end;
     }
-    buffer.write(withAudioChips.substring(last));
+    buffer.write(withoutSounds.substring(last));
     return buffer.toString();
   }
 

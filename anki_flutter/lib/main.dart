@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import 'data/db/database.dart';
+import 'data/media/pronunciation_service.dart';
 import 'data/repositories/deck_repository.dart';
 import 'data/repositories/note_repository.dart';
 import 'data/repositories/notetype_repository.dart';
@@ -53,6 +54,7 @@ class AnkiFlutterApp extends StatelessWidget {
         Provider<NoteRepository>.value(value: notes),
         Provider<StudyRepository>.value(value: study),
         Provider<StatsRepository>.value(value: stats),
+        Provider<PronunciationService>(create: (_) => PronunciationService(db, notes, notetypes)),
       ],
       child: MaterialApp(
         title: 'Anki',

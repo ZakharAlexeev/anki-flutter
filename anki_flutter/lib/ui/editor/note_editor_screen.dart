@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/db/database.dart';
+import '../../data/media/pronunciation_service.dart';
 import '../../data/repositories/deck_repository.dart';
 import '../../data/repositories/note_repository.dart';
 import '../../data/repositories/notetype_repository.dart';
@@ -60,7 +61,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     if (fieldValues.every((v) => v.trim().isEmpty)) return;
 
     setState(() => _saving = true);
-    await context.read<NoteRepository>().createNote(
+    final noteId = await context.read<NoteRepository>().createNote(
           notetypeId: notetype.id,
           deckId: deck.id,
           fields: fieldValues,
@@ -71,7 +72,21 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     for (final c in _fieldControllers.values) {
       c.clear();
     }
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Карточка добавлена')));
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(const SnackBar(content: Text('Карточка добавлена')));
+
+    // Fetch the pronunciation in the background: saving stays instant and
+    // the user can keep adding cards while it downloads (~1 s per word).
+    final pronunciation = context.read<PronunciationService>();
+    pronunciation.attachTo(noteId).then((outcome) {
+      final message = switch (outcome) {
+        PronunciationOutcome.added => 'Произношение добавлено',
+        PronunciationOutcome.notFound => 'В словарях нет записи произношения',
+        PronunciationOutcome.networkError => 'Не удалось скачать произношение: нет связи',
+        PronunciationOutcome.alreadyHasAudio || PronunciationOutcome.noEnglishText => null,
+      };
+      if (message != null) messenger.showSnackBar(SnackBar(content: Text(message)));
+    });
   }
 
   @override
