@@ -146,6 +146,92 @@ class $DeckConfigsTable extends DeckConfigs
     requiredDuringInsert: false,
     defaultValue: const Constant(8),
   );
+  static const VerificationMeta _leechSuspendsMeta = const VerificationMeta(
+    'leechSuspends',
+  );
+  @override
+  late final GeneratedColumn<bool> leechSuspends = GeneratedColumn<bool>(
+    'leech_suspends',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("leech_suspends" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _minimumLapseIntervalMeta =
+      const VerificationMeta('minimumLapseInterval');
+  @override
+  late final GeneratedColumn<int> minimumLapseInterval = GeneratedColumn<int>(
+    'minimum_lapse_interval',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
+  static const VerificationMeta _fsrsParamsMeta = const VerificationMeta(
+    'fsrsParams',
+  );
+  @override
+  late final GeneratedColumn<String> fsrsParams = GeneratedColumn<String>(
+    'fsrs_params',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _desiredRetentionMeta = const VerificationMeta(
+    'desiredRetention',
+  );
+  @override
+  late final GeneratedColumn<double> desiredRetention = GeneratedColumn<double>(
+    'desired_retention',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0.9),
+  );
+  static const VerificationMeta _historicalRetentionMeta =
+      const VerificationMeta('historicalRetention');
+  @override
+  late final GeneratedColumn<double> historicalRetention =
+      GeneratedColumn<double>(
+        'historical_retention',
+        aliasedName,
+        false,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(0.9),
+      );
+  static const VerificationMeta _ignoreRevlogsBeforeDateMeta =
+      const VerificationMeta('ignoreRevlogsBeforeDate');
+  @override
+  late final GeneratedColumn<String> ignoreRevlogsBeforeDate =
+      GeneratedColumn<String>(
+        'ignore_revlogs_before_date',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(''),
+      );
+  static const VerificationMeta _easyDaysPercentagesMeta =
+      const VerificationMeta('easyDaysPercentages');
+  @override
+  late final GeneratedColumn<String> easyDaysPercentages =
+      GeneratedColumn<String>(
+        'easy_days_percentages',
+        aliasedName,
+        false,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+        defaultValue: const Constant(''),
+      );
   static const VerificationMeta _maximumIntervalDaysMeta =
       const VerificationMeta('maximumIntervalDays');
   @override
@@ -207,6 +293,13 @@ class $DeckConfigsTable extends DeckConfigs
     hardIntervalPct,
     newIntervalPct,
     leechThreshold,
+    leechSuspends,
+    minimumLapseInterval,
+    fsrsParams,
+    desiredRetention,
+    historicalRetention,
+    ignoreRevlogsBeforeDate,
+    easyDaysPercentages,
     maximumIntervalDays,
     minEase,
     newPerDay,
@@ -325,6 +418,66 @@ class $DeckConfigsTable extends DeckConfigs
         ),
       );
     }
+    if (data.containsKey('leech_suspends')) {
+      context.handle(
+        _leechSuspendsMeta,
+        leechSuspends.isAcceptableOrUnknown(
+          data['leech_suspends']!,
+          _leechSuspendsMeta,
+        ),
+      );
+    }
+    if (data.containsKey('minimum_lapse_interval')) {
+      context.handle(
+        _minimumLapseIntervalMeta,
+        minimumLapseInterval.isAcceptableOrUnknown(
+          data['minimum_lapse_interval']!,
+          _minimumLapseIntervalMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fsrs_params')) {
+      context.handle(
+        _fsrsParamsMeta,
+        fsrsParams.isAcceptableOrUnknown(data['fsrs_params']!, _fsrsParamsMeta),
+      );
+    }
+    if (data.containsKey('desired_retention')) {
+      context.handle(
+        _desiredRetentionMeta,
+        desiredRetention.isAcceptableOrUnknown(
+          data['desired_retention']!,
+          _desiredRetentionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('historical_retention')) {
+      context.handle(
+        _historicalRetentionMeta,
+        historicalRetention.isAcceptableOrUnknown(
+          data['historical_retention']!,
+          _historicalRetentionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('ignore_revlogs_before_date')) {
+      context.handle(
+        _ignoreRevlogsBeforeDateMeta,
+        ignoreRevlogsBeforeDate.isAcceptableOrUnknown(
+          data['ignore_revlogs_before_date']!,
+          _ignoreRevlogsBeforeDateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('easy_days_percentages')) {
+      context.handle(
+        _easyDaysPercentagesMeta,
+        easyDaysPercentages.isAcceptableOrUnknown(
+          data['easy_days_percentages']!,
+          _easyDaysPercentagesMeta,
+        ),
+      );
+    }
     if (data.containsKey('maximum_interval_days')) {
       context.handle(
         _maximumIntervalDaysMeta,
@@ -412,6 +565,34 @@ class $DeckConfigsTable extends DeckConfigs
         DriftSqlType.int,
         data['${effectivePrefix}leech_threshold'],
       )!,
+      leechSuspends: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}leech_suspends'],
+      )!,
+      minimumLapseInterval: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}minimum_lapse_interval'],
+      )!,
+      fsrsParams: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}fsrs_params'],
+      )!,
+      desiredRetention: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}desired_retention'],
+      )!,
+      historicalRetention: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}historical_retention'],
+      )!,
+      ignoreRevlogsBeforeDate: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}ignore_revlogs_before_date'],
+      )!,
+      easyDaysPercentages: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}easy_days_percentages'],
+      )!,
       maximumIntervalDays: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}maximum_interval_days'],
@@ -450,6 +631,23 @@ class DeckConfig extends DataClass implements Insertable<DeckConfig> {
   final int hardIntervalPct;
   final int newIntervalPct;
   final int leechThreshold;
+
+  /// Anki's "leech action": suspend the card (true), or only tag it
+  /// `leech` (false - Anki's default).
+  final bool leechSuspends;
+
+  /// SM-2: the shortest interval after a lapse (Anki "minimum interval").
+  final int minimumLapseInterval;
+
+  /// FSRS parameters, comma-separated (17, 19 or 21 numbers; empty = the
+  /// FSRS-6 defaults).
+  final String fsrsParams;
+  final double desiredRetention;
+  final double historicalRetention;
+  final String ignoreRevlogsBeforeDate;
+
+  /// Load-balancer easy days, Mon..Sun, comma-separated (empty = normal).
+  final String easyDaysPercentages;
   final int maximumIntervalDays;
   final int minEase;
   final int newPerDay;
@@ -467,6 +665,13 @@ class DeckConfig extends DataClass implements Insertable<DeckConfig> {
     required this.hardIntervalPct,
     required this.newIntervalPct,
     required this.leechThreshold,
+    required this.leechSuspends,
+    required this.minimumLapseInterval,
+    required this.fsrsParams,
+    required this.desiredRetention,
+    required this.historicalRetention,
+    required this.ignoreRevlogsBeforeDate,
+    required this.easyDaysPercentages,
     required this.maximumIntervalDays,
     required this.minEase,
     required this.newPerDay,
@@ -487,6 +692,15 @@ class DeckConfig extends DataClass implements Insertable<DeckConfig> {
     map['hard_interval_pct'] = Variable<int>(hardIntervalPct);
     map['new_interval_pct'] = Variable<int>(newIntervalPct);
     map['leech_threshold'] = Variable<int>(leechThreshold);
+    map['leech_suspends'] = Variable<bool>(leechSuspends);
+    map['minimum_lapse_interval'] = Variable<int>(minimumLapseInterval);
+    map['fsrs_params'] = Variable<String>(fsrsParams);
+    map['desired_retention'] = Variable<double>(desiredRetention);
+    map['historical_retention'] = Variable<double>(historicalRetention);
+    map['ignore_revlogs_before_date'] = Variable<String>(
+      ignoreRevlogsBeforeDate,
+    );
+    map['easy_days_percentages'] = Variable<String>(easyDaysPercentages);
     map['maximum_interval_days'] = Variable<int>(maximumIntervalDays);
     map['min_ease'] = Variable<int>(minEase);
     map['new_per_day'] = Variable<int>(newPerDay);
@@ -508,6 +722,13 @@ class DeckConfig extends DataClass implements Insertable<DeckConfig> {
       hardIntervalPct: Value(hardIntervalPct),
       newIntervalPct: Value(newIntervalPct),
       leechThreshold: Value(leechThreshold),
+      leechSuspends: Value(leechSuspends),
+      minimumLapseInterval: Value(minimumLapseInterval),
+      fsrsParams: Value(fsrsParams),
+      desiredRetention: Value(desiredRetention),
+      historicalRetention: Value(historicalRetention),
+      ignoreRevlogsBeforeDate: Value(ignoreRevlogsBeforeDate),
+      easyDaysPercentages: Value(easyDaysPercentages),
       maximumIntervalDays: Value(maximumIntervalDays),
       minEase: Value(minEase),
       newPerDay: Value(newPerDay),
@@ -539,6 +760,21 @@ class DeckConfig extends DataClass implements Insertable<DeckConfig> {
       hardIntervalPct: serializer.fromJson<int>(json['hardIntervalPct']),
       newIntervalPct: serializer.fromJson<int>(json['newIntervalPct']),
       leechThreshold: serializer.fromJson<int>(json['leechThreshold']),
+      leechSuspends: serializer.fromJson<bool>(json['leechSuspends']),
+      minimumLapseInterval: serializer.fromJson<int>(
+        json['minimumLapseInterval'],
+      ),
+      fsrsParams: serializer.fromJson<String>(json['fsrsParams']),
+      desiredRetention: serializer.fromJson<double>(json['desiredRetention']),
+      historicalRetention: serializer.fromJson<double>(
+        json['historicalRetention'],
+      ),
+      ignoreRevlogsBeforeDate: serializer.fromJson<String>(
+        json['ignoreRevlogsBeforeDate'],
+      ),
+      easyDaysPercentages: serializer.fromJson<String>(
+        json['easyDaysPercentages'],
+      ),
       maximumIntervalDays: serializer.fromJson<int>(
         json['maximumIntervalDays'],
       ),
@@ -563,6 +799,15 @@ class DeckConfig extends DataClass implements Insertable<DeckConfig> {
       'hardIntervalPct': serializer.toJson<int>(hardIntervalPct),
       'newIntervalPct': serializer.toJson<int>(newIntervalPct),
       'leechThreshold': serializer.toJson<int>(leechThreshold),
+      'leechSuspends': serializer.toJson<bool>(leechSuspends),
+      'minimumLapseInterval': serializer.toJson<int>(minimumLapseInterval),
+      'fsrsParams': serializer.toJson<String>(fsrsParams),
+      'desiredRetention': serializer.toJson<double>(desiredRetention),
+      'historicalRetention': serializer.toJson<double>(historicalRetention),
+      'ignoreRevlogsBeforeDate': serializer.toJson<String>(
+        ignoreRevlogsBeforeDate,
+      ),
+      'easyDaysPercentages': serializer.toJson<String>(easyDaysPercentages),
       'maximumIntervalDays': serializer.toJson<int>(maximumIntervalDays),
       'minEase': serializer.toJson<int>(minEase),
       'newPerDay': serializer.toJson<int>(newPerDay),
@@ -583,6 +828,13 @@ class DeckConfig extends DataClass implements Insertable<DeckConfig> {
     int? hardIntervalPct,
     int? newIntervalPct,
     int? leechThreshold,
+    bool? leechSuspends,
+    int? minimumLapseInterval,
+    String? fsrsParams,
+    double? desiredRetention,
+    double? historicalRetention,
+    String? ignoreRevlogsBeforeDate,
+    String? easyDaysPercentages,
     int? maximumIntervalDays,
     int? minEase,
     int? newPerDay,
@@ -601,6 +853,14 @@ class DeckConfig extends DataClass implements Insertable<DeckConfig> {
     hardIntervalPct: hardIntervalPct ?? this.hardIntervalPct,
     newIntervalPct: newIntervalPct ?? this.newIntervalPct,
     leechThreshold: leechThreshold ?? this.leechThreshold,
+    leechSuspends: leechSuspends ?? this.leechSuspends,
+    minimumLapseInterval: minimumLapseInterval ?? this.minimumLapseInterval,
+    fsrsParams: fsrsParams ?? this.fsrsParams,
+    desiredRetention: desiredRetention ?? this.desiredRetention,
+    historicalRetention: historicalRetention ?? this.historicalRetention,
+    ignoreRevlogsBeforeDate:
+        ignoreRevlogsBeforeDate ?? this.ignoreRevlogsBeforeDate,
+    easyDaysPercentages: easyDaysPercentages ?? this.easyDaysPercentages,
     maximumIntervalDays: maximumIntervalDays ?? this.maximumIntervalDays,
     minEase: minEase ?? this.minEase,
     newPerDay: newPerDay ?? this.newPerDay,
@@ -640,6 +900,27 @@ class DeckConfig extends DataClass implements Insertable<DeckConfig> {
       leechThreshold: data.leechThreshold.present
           ? data.leechThreshold.value
           : this.leechThreshold,
+      leechSuspends: data.leechSuspends.present
+          ? data.leechSuspends.value
+          : this.leechSuspends,
+      minimumLapseInterval: data.minimumLapseInterval.present
+          ? data.minimumLapseInterval.value
+          : this.minimumLapseInterval,
+      fsrsParams: data.fsrsParams.present
+          ? data.fsrsParams.value
+          : this.fsrsParams,
+      desiredRetention: data.desiredRetention.present
+          ? data.desiredRetention.value
+          : this.desiredRetention,
+      historicalRetention: data.historicalRetention.present
+          ? data.historicalRetention.value
+          : this.historicalRetention,
+      ignoreRevlogsBeforeDate: data.ignoreRevlogsBeforeDate.present
+          ? data.ignoreRevlogsBeforeDate.value
+          : this.ignoreRevlogsBeforeDate,
+      easyDaysPercentages: data.easyDaysPercentages.present
+          ? data.easyDaysPercentages.value
+          : this.easyDaysPercentages,
       maximumIntervalDays: data.maximumIntervalDays.present
           ? data.maximumIntervalDays.value
           : this.maximumIntervalDays,
@@ -666,6 +947,13 @@ class DeckConfig extends DataClass implements Insertable<DeckConfig> {
           ..write('hardIntervalPct: $hardIntervalPct, ')
           ..write('newIntervalPct: $newIntervalPct, ')
           ..write('leechThreshold: $leechThreshold, ')
+          ..write('leechSuspends: $leechSuspends, ')
+          ..write('minimumLapseInterval: $minimumLapseInterval, ')
+          ..write('fsrsParams: $fsrsParams, ')
+          ..write('desiredRetention: $desiredRetention, ')
+          ..write('historicalRetention: $historicalRetention, ')
+          ..write('ignoreRevlogsBeforeDate: $ignoreRevlogsBeforeDate, ')
+          ..write('easyDaysPercentages: $easyDaysPercentages, ')
           ..write('maximumIntervalDays: $maximumIntervalDays, ')
           ..write('minEase: $minEase, ')
           ..write('newPerDay: $newPerDay, ')
@@ -675,7 +963,7 @@ class DeckConfig extends DataClass implements Insertable<DeckConfig> {
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     id,
     name,
     learningStepsMin,
@@ -688,11 +976,18 @@ class DeckConfig extends DataClass implements Insertable<DeckConfig> {
     hardIntervalPct,
     newIntervalPct,
     leechThreshold,
+    leechSuspends,
+    minimumLapseInterval,
+    fsrsParams,
+    desiredRetention,
+    historicalRetention,
+    ignoreRevlogsBeforeDate,
+    easyDaysPercentages,
     maximumIntervalDays,
     minEase,
     newPerDay,
     reviewsPerDay,
-  );
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -709,6 +1004,13 @@ class DeckConfig extends DataClass implements Insertable<DeckConfig> {
           other.hardIntervalPct == this.hardIntervalPct &&
           other.newIntervalPct == this.newIntervalPct &&
           other.leechThreshold == this.leechThreshold &&
+          other.leechSuspends == this.leechSuspends &&
+          other.minimumLapseInterval == this.minimumLapseInterval &&
+          other.fsrsParams == this.fsrsParams &&
+          other.desiredRetention == this.desiredRetention &&
+          other.historicalRetention == this.historicalRetention &&
+          other.ignoreRevlogsBeforeDate == this.ignoreRevlogsBeforeDate &&
+          other.easyDaysPercentages == this.easyDaysPercentages &&
           other.maximumIntervalDays == this.maximumIntervalDays &&
           other.minEase == this.minEase &&
           other.newPerDay == this.newPerDay &&
@@ -728,6 +1030,13 @@ class DeckConfigsCompanion extends UpdateCompanion<DeckConfig> {
   final Value<int> hardIntervalPct;
   final Value<int> newIntervalPct;
   final Value<int> leechThreshold;
+  final Value<bool> leechSuspends;
+  final Value<int> minimumLapseInterval;
+  final Value<String> fsrsParams;
+  final Value<double> desiredRetention;
+  final Value<double> historicalRetention;
+  final Value<String> ignoreRevlogsBeforeDate;
+  final Value<String> easyDaysPercentages;
   final Value<int> maximumIntervalDays;
   final Value<int> minEase;
   final Value<int> newPerDay;
@@ -745,6 +1054,13 @@ class DeckConfigsCompanion extends UpdateCompanion<DeckConfig> {
     this.hardIntervalPct = const Value.absent(),
     this.newIntervalPct = const Value.absent(),
     this.leechThreshold = const Value.absent(),
+    this.leechSuspends = const Value.absent(),
+    this.minimumLapseInterval = const Value.absent(),
+    this.fsrsParams = const Value.absent(),
+    this.desiredRetention = const Value.absent(),
+    this.historicalRetention = const Value.absent(),
+    this.ignoreRevlogsBeforeDate = const Value.absent(),
+    this.easyDaysPercentages = const Value.absent(),
     this.maximumIntervalDays = const Value.absent(),
     this.minEase = const Value.absent(),
     this.newPerDay = const Value.absent(),
@@ -763,6 +1079,13 @@ class DeckConfigsCompanion extends UpdateCompanion<DeckConfig> {
     this.hardIntervalPct = const Value.absent(),
     this.newIntervalPct = const Value.absent(),
     this.leechThreshold = const Value.absent(),
+    this.leechSuspends = const Value.absent(),
+    this.minimumLapseInterval = const Value.absent(),
+    this.fsrsParams = const Value.absent(),
+    this.desiredRetention = const Value.absent(),
+    this.historicalRetention = const Value.absent(),
+    this.ignoreRevlogsBeforeDate = const Value.absent(),
+    this.easyDaysPercentages = const Value.absent(),
     this.maximumIntervalDays = const Value.absent(),
     this.minEase = const Value.absent(),
     this.newPerDay = const Value.absent(),
@@ -781,6 +1104,13 @@ class DeckConfigsCompanion extends UpdateCompanion<DeckConfig> {
     Expression<int>? hardIntervalPct,
     Expression<int>? newIntervalPct,
     Expression<int>? leechThreshold,
+    Expression<bool>? leechSuspends,
+    Expression<int>? minimumLapseInterval,
+    Expression<String>? fsrsParams,
+    Expression<double>? desiredRetention,
+    Expression<double>? historicalRetention,
+    Expression<String>? ignoreRevlogsBeforeDate,
+    Expression<String>? easyDaysPercentages,
     Expression<int>? maximumIntervalDays,
     Expression<int>? minEase,
     Expression<int>? newPerDay,
@@ -802,6 +1132,17 @@ class DeckConfigsCompanion extends UpdateCompanion<DeckConfig> {
       if (hardIntervalPct != null) 'hard_interval_pct': hardIntervalPct,
       if (newIntervalPct != null) 'new_interval_pct': newIntervalPct,
       if (leechThreshold != null) 'leech_threshold': leechThreshold,
+      if (leechSuspends != null) 'leech_suspends': leechSuspends,
+      if (minimumLapseInterval != null)
+        'minimum_lapse_interval': minimumLapseInterval,
+      if (fsrsParams != null) 'fsrs_params': fsrsParams,
+      if (desiredRetention != null) 'desired_retention': desiredRetention,
+      if (historicalRetention != null)
+        'historical_retention': historicalRetention,
+      if (ignoreRevlogsBeforeDate != null)
+        'ignore_revlogs_before_date': ignoreRevlogsBeforeDate,
+      if (easyDaysPercentages != null)
+        'easy_days_percentages': easyDaysPercentages,
       if (maximumIntervalDays != null)
         'maximum_interval_days': maximumIntervalDays,
       if (minEase != null) 'min_ease': minEase,
@@ -823,6 +1164,13 @@ class DeckConfigsCompanion extends UpdateCompanion<DeckConfig> {
     Value<int>? hardIntervalPct,
     Value<int>? newIntervalPct,
     Value<int>? leechThreshold,
+    Value<bool>? leechSuspends,
+    Value<int>? minimumLapseInterval,
+    Value<String>? fsrsParams,
+    Value<double>? desiredRetention,
+    Value<double>? historicalRetention,
+    Value<String>? ignoreRevlogsBeforeDate,
+    Value<String>? easyDaysPercentages,
     Value<int>? maximumIntervalDays,
     Value<int>? minEase,
     Value<int>? newPerDay,
@@ -842,6 +1190,14 @@ class DeckConfigsCompanion extends UpdateCompanion<DeckConfig> {
       hardIntervalPct: hardIntervalPct ?? this.hardIntervalPct,
       newIntervalPct: newIntervalPct ?? this.newIntervalPct,
       leechThreshold: leechThreshold ?? this.leechThreshold,
+      leechSuspends: leechSuspends ?? this.leechSuspends,
+      minimumLapseInterval: minimumLapseInterval ?? this.minimumLapseInterval,
+      fsrsParams: fsrsParams ?? this.fsrsParams,
+      desiredRetention: desiredRetention ?? this.desiredRetention,
+      historicalRetention: historicalRetention ?? this.historicalRetention,
+      ignoreRevlogsBeforeDate:
+          ignoreRevlogsBeforeDate ?? this.ignoreRevlogsBeforeDate,
+      easyDaysPercentages: easyDaysPercentages ?? this.easyDaysPercentages,
       maximumIntervalDays: maximumIntervalDays ?? this.maximumIntervalDays,
       minEase: minEase ?? this.minEase,
       newPerDay: newPerDay ?? this.newPerDay,
@@ -890,6 +1246,31 @@ class DeckConfigsCompanion extends UpdateCompanion<DeckConfig> {
     if (leechThreshold.present) {
       map['leech_threshold'] = Variable<int>(leechThreshold.value);
     }
+    if (leechSuspends.present) {
+      map['leech_suspends'] = Variable<bool>(leechSuspends.value);
+    }
+    if (minimumLapseInterval.present) {
+      map['minimum_lapse_interval'] = Variable<int>(minimumLapseInterval.value);
+    }
+    if (fsrsParams.present) {
+      map['fsrs_params'] = Variable<String>(fsrsParams.value);
+    }
+    if (desiredRetention.present) {
+      map['desired_retention'] = Variable<double>(desiredRetention.value);
+    }
+    if (historicalRetention.present) {
+      map['historical_retention'] = Variable<double>(historicalRetention.value);
+    }
+    if (ignoreRevlogsBeforeDate.present) {
+      map['ignore_revlogs_before_date'] = Variable<String>(
+        ignoreRevlogsBeforeDate.value,
+      );
+    }
+    if (easyDaysPercentages.present) {
+      map['easy_days_percentages'] = Variable<String>(
+        easyDaysPercentages.value,
+      );
+    }
     if (maximumIntervalDays.present) {
       map['maximum_interval_days'] = Variable<int>(maximumIntervalDays.value);
     }
@@ -920,6 +1301,13 @@ class DeckConfigsCompanion extends UpdateCompanion<DeckConfig> {
           ..write('hardIntervalPct: $hardIntervalPct, ')
           ..write('newIntervalPct: $newIntervalPct, ')
           ..write('leechThreshold: $leechThreshold, ')
+          ..write('leechSuspends: $leechSuspends, ')
+          ..write('minimumLapseInterval: $minimumLapseInterval, ')
+          ..write('fsrsParams: $fsrsParams, ')
+          ..write('desiredRetention: $desiredRetention, ')
+          ..write('historicalRetention: $historicalRetention, ')
+          ..write('ignoreRevlogsBeforeDate: $ignoreRevlogsBeforeDate, ')
+          ..write('easyDaysPercentages: $easyDaysPercentages, ')
           ..write('maximumIntervalDays: $maximumIntervalDays, ')
           ..write('minEase: $minEase, ')
           ..write('newPerDay: $newPerDay, ')
@@ -3056,6 +3444,50 @@ class $CardsTable extends Cards with TableInfo<$CardsTable, CardEntry> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _fsrsStabilityMeta = const VerificationMeta(
+    'fsrsStability',
+  );
+  @override
+  late final GeneratedColumn<double> fsrsStability = GeneratedColumn<double>(
+    'fsrs_stability',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _fsrsDifficultyMeta = const VerificationMeta(
+    'fsrsDifficulty',
+  );
+  @override
+  late final GeneratedColumn<double> fsrsDifficulty = GeneratedColumn<double>(
+    'fsrs_difficulty',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _fsrsDesiredRetentionMeta =
+      const VerificationMeta('fsrsDesiredRetention');
+  @override
+  late final GeneratedColumn<double> fsrsDesiredRetention =
+      GeneratedColumn<double>(
+        'fsrs_desired_retention',
+        aliasedName,
+        true,
+        type: DriftSqlType.double,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _fsrsDecayMeta = const VerificationMeta(
+    'fsrsDecay',
+  );
+  @override
+  late final GeneratedColumn<double> fsrsDecay = GeneratedColumn<double>(
+    'fsrs_decay',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3070,6 +3502,10 @@ class $CardsTable extends Cards with TableInfo<$CardsTable, CardEntry> {
     lapses,
     stepIndex,
     lastReviewedAt,
+    fsrsStability,
+    fsrsDifficulty,
+    fsrsDesiredRetention,
+    fsrsDecay,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3158,6 +3594,39 @@ class $CardsTable extends Cards with TableInfo<$CardsTable, CardEntry> {
         ),
       );
     }
+    if (data.containsKey('fsrs_stability')) {
+      context.handle(
+        _fsrsStabilityMeta,
+        fsrsStability.isAcceptableOrUnknown(
+          data['fsrs_stability']!,
+          _fsrsStabilityMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fsrs_difficulty')) {
+      context.handle(
+        _fsrsDifficultyMeta,
+        fsrsDifficulty.isAcceptableOrUnknown(
+          data['fsrs_difficulty']!,
+          _fsrsDifficultyMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fsrs_desired_retention')) {
+      context.handle(
+        _fsrsDesiredRetentionMeta,
+        fsrsDesiredRetention.isAcceptableOrUnknown(
+          data['fsrs_desired_retention']!,
+          _fsrsDesiredRetentionMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fsrs_decay')) {
+      context.handle(
+        _fsrsDecayMeta,
+        fsrsDecay.isAcceptableOrUnknown(data['fsrs_decay']!, _fsrsDecayMeta),
+      );
+    }
     return context;
   }
 
@@ -3217,6 +3686,22 @@ class $CardsTable extends Cards with TableInfo<$CardsTable, CardEntry> {
         DriftSqlType.int,
         data['${effectivePrefix}last_reviewed_at'],
       ),
+      fsrsStability: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}fsrs_stability'],
+      ),
+      fsrsDifficulty: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}fsrs_difficulty'],
+      ),
+      fsrsDesiredRetention: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}fsrs_desired_retention'],
+      ),
+      fsrsDecay: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}fsrs_decay'],
+      ),
     );
   }
 
@@ -3244,7 +3729,19 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
   final int reps;
   final int lapses;
   final int stepIndex;
+
+  /// When the card was last answered (epoch seconds) - Anki's `lrt`, which
+  /// FSRS uses to count the days since the last review.
   final int? lastReviewedAt;
+
+  /// FSRS memory state (Anki card data `s`/`d`), null until computed.
+  final double? fsrsStability;
+  final double? fsrsDifficulty;
+
+  /// Desired retention and decay the card was last scheduled with (`dr`,
+  /// `decay`), kept for export to Anki.
+  final double? fsrsDesiredRetention;
+  final double? fsrsDecay;
   const CardEntry({
     required this.id,
     required this.noteId,
@@ -3258,6 +3755,10 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
     required this.lapses,
     required this.stepIndex,
     this.lastReviewedAt,
+    this.fsrsStability,
+    this.fsrsDifficulty,
+    this.fsrsDesiredRetention,
+    this.fsrsDecay,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3278,6 +3779,18 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
     if (!nullToAbsent || lastReviewedAt != null) {
       map['last_reviewed_at'] = Variable<int>(lastReviewedAt);
     }
+    if (!nullToAbsent || fsrsStability != null) {
+      map['fsrs_stability'] = Variable<double>(fsrsStability);
+    }
+    if (!nullToAbsent || fsrsDifficulty != null) {
+      map['fsrs_difficulty'] = Variable<double>(fsrsDifficulty);
+    }
+    if (!nullToAbsent || fsrsDesiredRetention != null) {
+      map['fsrs_desired_retention'] = Variable<double>(fsrsDesiredRetention);
+    }
+    if (!nullToAbsent || fsrsDecay != null) {
+      map['fsrs_decay'] = Variable<double>(fsrsDecay);
+    }
     return map;
   }
 
@@ -3297,6 +3810,18 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
       lastReviewedAt: lastReviewedAt == null && nullToAbsent
           ? const Value.absent()
           : Value(lastReviewedAt),
+      fsrsStability: fsrsStability == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fsrsStability),
+      fsrsDifficulty: fsrsDifficulty == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fsrsDifficulty),
+      fsrsDesiredRetention: fsrsDesiredRetention == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fsrsDesiredRetention),
+      fsrsDecay: fsrsDecay == null && nullToAbsent
+          ? const Value.absent()
+          : Value(fsrsDecay),
     );
   }
 
@@ -3320,6 +3845,12 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
       lapses: serializer.fromJson<int>(json['lapses']),
       stepIndex: serializer.fromJson<int>(json['stepIndex']),
       lastReviewedAt: serializer.fromJson<int?>(json['lastReviewedAt']),
+      fsrsStability: serializer.fromJson<double?>(json['fsrsStability']),
+      fsrsDifficulty: serializer.fromJson<double?>(json['fsrsDifficulty']),
+      fsrsDesiredRetention: serializer.fromJson<double?>(
+        json['fsrsDesiredRetention'],
+      ),
+      fsrsDecay: serializer.fromJson<double?>(json['fsrsDecay']),
     );
   }
   @override
@@ -3340,6 +3871,10 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
       'lapses': serializer.toJson<int>(lapses),
       'stepIndex': serializer.toJson<int>(stepIndex),
       'lastReviewedAt': serializer.toJson<int?>(lastReviewedAt),
+      'fsrsStability': serializer.toJson<double?>(fsrsStability),
+      'fsrsDifficulty': serializer.toJson<double?>(fsrsDifficulty),
+      'fsrsDesiredRetention': serializer.toJson<double?>(fsrsDesiredRetention),
+      'fsrsDecay': serializer.toJson<double?>(fsrsDecay),
     };
   }
 
@@ -3356,6 +3891,10 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
     int? lapses,
     int? stepIndex,
     Value<int?> lastReviewedAt = const Value.absent(),
+    Value<double?> fsrsStability = const Value.absent(),
+    Value<double?> fsrsDifficulty = const Value.absent(),
+    Value<double?> fsrsDesiredRetention = const Value.absent(),
+    Value<double?> fsrsDecay = const Value.absent(),
   }) => CardEntry(
     id: id ?? this.id,
     noteId: noteId ?? this.noteId,
@@ -3371,6 +3910,16 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
     lastReviewedAt: lastReviewedAt.present
         ? lastReviewedAt.value
         : this.lastReviewedAt,
+    fsrsStability: fsrsStability.present
+        ? fsrsStability.value
+        : this.fsrsStability,
+    fsrsDifficulty: fsrsDifficulty.present
+        ? fsrsDifficulty.value
+        : this.fsrsDifficulty,
+    fsrsDesiredRetention: fsrsDesiredRetention.present
+        ? fsrsDesiredRetention.value
+        : this.fsrsDesiredRetention,
+    fsrsDecay: fsrsDecay.present ? fsrsDecay.value : this.fsrsDecay,
   );
   CardEntry copyWithCompanion(CardsCompanion data) {
     return CardEntry(
@@ -3390,6 +3939,16 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
       lastReviewedAt: data.lastReviewedAt.present
           ? data.lastReviewedAt.value
           : this.lastReviewedAt,
+      fsrsStability: data.fsrsStability.present
+          ? data.fsrsStability.value
+          : this.fsrsStability,
+      fsrsDifficulty: data.fsrsDifficulty.present
+          ? data.fsrsDifficulty.value
+          : this.fsrsDifficulty,
+      fsrsDesiredRetention: data.fsrsDesiredRetention.present
+          ? data.fsrsDesiredRetention.value
+          : this.fsrsDesiredRetention,
+      fsrsDecay: data.fsrsDecay.present ? data.fsrsDecay.value : this.fsrsDecay,
     );
   }
 
@@ -3407,7 +3966,11 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
           ..write('reps: $reps, ')
           ..write('lapses: $lapses, ')
           ..write('stepIndex: $stepIndex, ')
-          ..write('lastReviewedAt: $lastReviewedAt')
+          ..write('lastReviewedAt: $lastReviewedAt, ')
+          ..write('fsrsStability: $fsrsStability, ')
+          ..write('fsrsDifficulty: $fsrsDifficulty, ')
+          ..write('fsrsDesiredRetention: $fsrsDesiredRetention, ')
+          ..write('fsrsDecay: $fsrsDecay')
           ..write(')'))
         .toString();
   }
@@ -3426,6 +3989,10 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
     lapses,
     stepIndex,
     lastReviewedAt,
+    fsrsStability,
+    fsrsDifficulty,
+    fsrsDesiredRetention,
+    fsrsDecay,
   );
   @override
   bool operator ==(Object other) =>
@@ -3442,7 +4009,11 @@ class CardEntry extends DataClass implements Insertable<CardEntry> {
           other.reps == this.reps &&
           other.lapses == this.lapses &&
           other.stepIndex == this.stepIndex &&
-          other.lastReviewedAt == this.lastReviewedAt);
+          other.lastReviewedAt == this.lastReviewedAt &&
+          other.fsrsStability == this.fsrsStability &&
+          other.fsrsDifficulty == this.fsrsDifficulty &&
+          other.fsrsDesiredRetention == this.fsrsDesiredRetention &&
+          other.fsrsDecay == this.fsrsDecay);
 }
 
 class CardsCompanion extends UpdateCompanion<CardEntry> {
@@ -3458,6 +4029,10 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
   final Value<int> lapses;
   final Value<int> stepIndex;
   final Value<int?> lastReviewedAt;
+  final Value<double?> fsrsStability;
+  final Value<double?> fsrsDifficulty;
+  final Value<double?> fsrsDesiredRetention;
+  final Value<double?> fsrsDecay;
   const CardsCompanion({
     this.id = const Value.absent(),
     this.noteId = const Value.absent(),
@@ -3471,6 +4046,10 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
     this.lapses = const Value.absent(),
     this.stepIndex = const Value.absent(),
     this.lastReviewedAt = const Value.absent(),
+    this.fsrsStability = const Value.absent(),
+    this.fsrsDifficulty = const Value.absent(),
+    this.fsrsDesiredRetention = const Value.absent(),
+    this.fsrsDecay = const Value.absent(),
   });
   CardsCompanion.insert({
     this.id = const Value.absent(),
@@ -3485,6 +4064,10 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
     this.lapses = const Value.absent(),
     this.stepIndex = const Value.absent(),
     this.lastReviewedAt = const Value.absent(),
+    this.fsrsStability = const Value.absent(),
+    this.fsrsDifficulty = const Value.absent(),
+    this.fsrsDesiredRetention = const Value.absent(),
+    this.fsrsDecay = const Value.absent(),
   }) : noteId = Value(noteId),
        deckId = Value(deckId),
        templateOrd = Value(templateOrd);
@@ -3501,6 +4084,10 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
     Expression<int>? lapses,
     Expression<int>? stepIndex,
     Expression<int>? lastReviewedAt,
+    Expression<double>? fsrsStability,
+    Expression<double>? fsrsDifficulty,
+    Expression<double>? fsrsDesiredRetention,
+    Expression<double>? fsrsDecay,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -3515,6 +4102,11 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
       if (lapses != null) 'lapses': lapses,
       if (stepIndex != null) 'step_index': stepIndex,
       if (lastReviewedAt != null) 'last_reviewed_at': lastReviewedAt,
+      if (fsrsStability != null) 'fsrs_stability': fsrsStability,
+      if (fsrsDifficulty != null) 'fsrs_difficulty': fsrsDifficulty,
+      if (fsrsDesiredRetention != null)
+        'fsrs_desired_retention': fsrsDesiredRetention,
+      if (fsrsDecay != null) 'fsrs_decay': fsrsDecay,
     });
   }
 
@@ -3531,6 +4123,10 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
     Value<int>? lapses,
     Value<int>? stepIndex,
     Value<int?>? lastReviewedAt,
+    Value<double?>? fsrsStability,
+    Value<double?>? fsrsDifficulty,
+    Value<double?>? fsrsDesiredRetention,
+    Value<double?>? fsrsDecay,
   }) {
     return CardsCompanion(
       id: id ?? this.id,
@@ -3545,6 +4141,10 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
       lapses: lapses ?? this.lapses,
       stepIndex: stepIndex ?? this.stepIndex,
       lastReviewedAt: lastReviewedAt ?? this.lastReviewedAt,
+      fsrsStability: fsrsStability ?? this.fsrsStability,
+      fsrsDifficulty: fsrsDifficulty ?? this.fsrsDifficulty,
+      fsrsDesiredRetention: fsrsDesiredRetention ?? this.fsrsDesiredRetention,
+      fsrsDecay: fsrsDecay ?? this.fsrsDecay,
     );
   }
 
@@ -3589,6 +4189,20 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
     if (lastReviewedAt.present) {
       map['last_reviewed_at'] = Variable<int>(lastReviewedAt.value);
     }
+    if (fsrsStability.present) {
+      map['fsrs_stability'] = Variable<double>(fsrsStability.value);
+    }
+    if (fsrsDifficulty.present) {
+      map['fsrs_difficulty'] = Variable<double>(fsrsDifficulty.value);
+    }
+    if (fsrsDesiredRetention.present) {
+      map['fsrs_desired_retention'] = Variable<double>(
+        fsrsDesiredRetention.value,
+      );
+    }
+    if (fsrsDecay.present) {
+      map['fsrs_decay'] = Variable<double>(fsrsDecay.value);
+    }
     return map;
   }
 
@@ -3606,7 +4220,11 @@ class CardsCompanion extends UpdateCompanion<CardEntry> {
           ..write('reps: $reps, ')
           ..write('lapses: $lapses, ')
           ..write('stepIndex: $stepIndex, ')
-          ..write('lastReviewedAt: $lastReviewedAt')
+          ..write('lastReviewedAt: $lastReviewedAt, ')
+          ..write('fsrsStability: $fsrsStability, ')
+          ..write('fsrsDifficulty: $fsrsDifficulty, ')
+          ..write('fsrsDesiredRetention: $fsrsDesiredRetention, ')
+          ..write('fsrsDecay: $fsrsDecay')
           ..write(')'))
         .toString();
   }
@@ -3707,6 +4325,16 @@ class $RevLogTable extends RevLog with TableInfo<$RevLogTable, RevLogData> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _kindMeta = const VerificationMeta('kind');
+  @override
+  late final GeneratedColumn<int> kind = GeneratedColumn<int>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(1),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -3717,6 +4345,7 @@ class $RevLogTable extends RevLog with TableInfo<$RevLogTable, RevLogData> {
     ivlAfter,
     easeAfter,
     timeTakenMs,
+    kind,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -3790,6 +4419,12 @@ class $RevLogTable extends RevLog with TableInfo<$RevLogTable, RevLogData> {
         ),
       );
     }
+    if (data.containsKey('kind')) {
+      context.handle(
+        _kindMeta,
+        kind.isAcceptableOrUnknown(data['kind']!, _kindMeta),
+      );
+    }
     return context;
   }
 
@@ -3831,6 +4466,10 @@ class $RevLogTable extends RevLog with TableInfo<$RevLogTable, RevLogData> {
         DriftSqlType.int,
         data['${effectivePrefix}time_taken_ms'],
       )!,
+      kind: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}kind'],
+      )!,
     );
   }
 
@@ -3847,10 +4486,20 @@ class RevLogData extends DataClass implements Insertable<RevLogData> {
 
   /// 1=Again, 2=Hard, 3=Good, 4=Easy - matches Anki's revlog.ease convention.
   final int rating;
+
+  /// Anki's revlog `lastIvl` / `ivl`: positive days, negative seconds for
+  /// learning steps.
   final int ivlBefore;
   final int ivlAfter;
+
+  /// Anki's revlog `factor`: the ease in permille, or for FSRS cards the
+  /// difficulty shifted into 100-1100.
   final int easeAfter;
   final int timeTakenMs;
+
+  /// Anki's revlog `type`: 0 learning, 1 review, 2 relearning, 3 filtered,
+  /// 4 manual, 5 rescheduled.
+  final int kind;
   const RevLogData({
     required this.id,
     required this.cardId,
@@ -3860,6 +4509,7 @@ class RevLogData extends DataClass implements Insertable<RevLogData> {
     required this.ivlAfter,
     required this.easeAfter,
     required this.timeTakenMs,
+    required this.kind,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -3872,6 +4522,7 @@ class RevLogData extends DataClass implements Insertable<RevLogData> {
     map['ivl_after'] = Variable<int>(ivlAfter);
     map['ease_after'] = Variable<int>(easeAfter);
     map['time_taken_ms'] = Variable<int>(timeTakenMs);
+    map['kind'] = Variable<int>(kind);
     return map;
   }
 
@@ -3885,6 +4536,7 @@ class RevLogData extends DataClass implements Insertable<RevLogData> {
       ivlAfter: Value(ivlAfter),
       easeAfter: Value(easeAfter),
       timeTakenMs: Value(timeTakenMs),
+      kind: Value(kind),
     );
   }
 
@@ -3902,6 +4554,7 @@ class RevLogData extends DataClass implements Insertable<RevLogData> {
       ivlAfter: serializer.fromJson<int>(json['ivlAfter']),
       easeAfter: serializer.fromJson<int>(json['easeAfter']),
       timeTakenMs: serializer.fromJson<int>(json['timeTakenMs']),
+      kind: serializer.fromJson<int>(json['kind']),
     );
   }
   @override
@@ -3916,6 +4569,7 @@ class RevLogData extends DataClass implements Insertable<RevLogData> {
       'ivlAfter': serializer.toJson<int>(ivlAfter),
       'easeAfter': serializer.toJson<int>(easeAfter),
       'timeTakenMs': serializer.toJson<int>(timeTakenMs),
+      'kind': serializer.toJson<int>(kind),
     };
   }
 
@@ -3928,6 +4582,7 @@ class RevLogData extends DataClass implements Insertable<RevLogData> {
     int? ivlAfter,
     int? easeAfter,
     int? timeTakenMs,
+    int? kind,
   }) => RevLogData(
     id: id ?? this.id,
     cardId: cardId ?? this.cardId,
@@ -3937,6 +4592,7 @@ class RevLogData extends DataClass implements Insertable<RevLogData> {
     ivlAfter: ivlAfter ?? this.ivlAfter,
     easeAfter: easeAfter ?? this.easeAfter,
     timeTakenMs: timeTakenMs ?? this.timeTakenMs,
+    kind: kind ?? this.kind,
   );
   RevLogData copyWithCompanion(RevLogCompanion data) {
     return RevLogData(
@@ -3952,6 +4608,7 @@ class RevLogData extends DataClass implements Insertable<RevLogData> {
       timeTakenMs: data.timeTakenMs.present
           ? data.timeTakenMs.value
           : this.timeTakenMs,
+      kind: data.kind.present ? data.kind.value : this.kind,
     );
   }
 
@@ -3965,7 +4622,8 @@ class RevLogData extends DataClass implements Insertable<RevLogData> {
           ..write('ivlBefore: $ivlBefore, ')
           ..write('ivlAfter: $ivlAfter, ')
           ..write('easeAfter: $easeAfter, ')
-          ..write('timeTakenMs: $timeTakenMs')
+          ..write('timeTakenMs: $timeTakenMs, ')
+          ..write('kind: $kind')
           ..write(')'))
         .toString();
   }
@@ -3980,6 +4638,7 @@ class RevLogData extends DataClass implements Insertable<RevLogData> {
     ivlAfter,
     easeAfter,
     timeTakenMs,
+    kind,
   );
   @override
   bool operator ==(Object other) =>
@@ -3992,7 +4651,8 @@ class RevLogData extends DataClass implements Insertable<RevLogData> {
           other.ivlBefore == this.ivlBefore &&
           other.ivlAfter == this.ivlAfter &&
           other.easeAfter == this.easeAfter &&
-          other.timeTakenMs == this.timeTakenMs);
+          other.timeTakenMs == this.timeTakenMs &&
+          other.kind == this.kind);
 }
 
 class RevLogCompanion extends UpdateCompanion<RevLogData> {
@@ -4004,6 +4664,7 @@ class RevLogCompanion extends UpdateCompanion<RevLogData> {
   final Value<int> ivlAfter;
   final Value<int> easeAfter;
   final Value<int> timeTakenMs;
+  final Value<int> kind;
   const RevLogCompanion({
     this.id = const Value.absent(),
     this.cardId = const Value.absent(),
@@ -4013,6 +4674,7 @@ class RevLogCompanion extends UpdateCompanion<RevLogData> {
     this.ivlAfter = const Value.absent(),
     this.easeAfter = const Value.absent(),
     this.timeTakenMs = const Value.absent(),
+    this.kind = const Value.absent(),
   });
   RevLogCompanion.insert({
     this.id = const Value.absent(),
@@ -4023,6 +4685,7 @@ class RevLogCompanion extends UpdateCompanion<RevLogData> {
     required int ivlAfter,
     required int easeAfter,
     this.timeTakenMs = const Value.absent(),
+    this.kind = const Value.absent(),
   }) : cardId = Value(cardId),
        reviewedAt = Value(reviewedAt),
        rating = Value(rating),
@@ -4038,6 +4701,7 @@ class RevLogCompanion extends UpdateCompanion<RevLogData> {
     Expression<int>? ivlAfter,
     Expression<int>? easeAfter,
     Expression<int>? timeTakenMs,
+    Expression<int>? kind,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -4048,6 +4712,7 @@ class RevLogCompanion extends UpdateCompanion<RevLogData> {
       if (ivlAfter != null) 'ivl_after': ivlAfter,
       if (easeAfter != null) 'ease_after': easeAfter,
       if (timeTakenMs != null) 'time_taken_ms': timeTakenMs,
+      if (kind != null) 'kind': kind,
     });
   }
 
@@ -4060,6 +4725,7 @@ class RevLogCompanion extends UpdateCompanion<RevLogData> {
     Value<int>? ivlAfter,
     Value<int>? easeAfter,
     Value<int>? timeTakenMs,
+    Value<int>? kind,
   }) {
     return RevLogCompanion(
       id: id ?? this.id,
@@ -4070,6 +4736,7 @@ class RevLogCompanion extends UpdateCompanion<RevLogData> {
       ivlAfter: ivlAfter ?? this.ivlAfter,
       easeAfter: easeAfter ?? this.easeAfter,
       timeTakenMs: timeTakenMs ?? this.timeTakenMs,
+      kind: kind ?? this.kind,
     );
   }
 
@@ -4100,6 +4767,9 @@ class RevLogCompanion extends UpdateCompanion<RevLogData> {
     if (timeTakenMs.present) {
       map['time_taken_ms'] = Variable<int>(timeTakenMs.value);
     }
+    if (kind.present) {
+      map['kind'] = Variable<int>(kind.value);
+    }
     return map;
   }
 
@@ -4113,7 +4783,8 @@ class RevLogCompanion extends UpdateCompanion<RevLogData> {
           ..write('ivlBefore: $ivlBefore, ')
           ..write('ivlAfter: $ivlAfter, ')
           ..write('easeAfter: $easeAfter, ')
-          ..write('timeTakenMs: $timeTakenMs')
+          ..write('timeTakenMs: $timeTakenMs, ')
+          ..write('kind: $kind')
           ..write(')'))
         .toString();
   }
@@ -4159,8 +4830,59 @@ class $CollectionMetaTable extends CollectionMeta
     requiredDuringInsert: false,
     defaultValue: const Constant(4),
   );
+  static const VerificationMeta _fsrsEnabledMeta = const VerificationMeta(
+    'fsrsEnabled',
+  );
   @override
-  List<GeneratedColumn> get $columns => [id, createdAt, rolloverHour];
+  late final GeneratedColumn<bool> fsrsEnabled = GeneratedColumn<bool>(
+    'fsrs_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("fsrs_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _loadBalancerEnabledMeta =
+      const VerificationMeta('loadBalancerEnabled');
+  @override
+  late final GeneratedColumn<bool> loadBalancerEnabled = GeneratedColumn<bool>(
+    'load_balancer_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("load_balancer_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(true),
+  );
+  static const VerificationMeta _fsrsShortTermWithStepsMeta =
+      const VerificationMeta('fsrsShortTermWithSteps');
+  @override
+  late final GeneratedColumn<bool> fsrsShortTermWithSteps =
+      GeneratedColumn<bool>(
+        'fsrs_short_term_with_steps',
+        aliasedName,
+        false,
+        type: DriftSqlType.bool,
+        requiredDuringInsert: false,
+        defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'CHECK ("fsrs_short_term_with_steps" IN (0, 1))',
+        ),
+        defaultValue: const Constant(false),
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    createdAt,
+    rolloverHour,
+    fsrsEnabled,
+    loadBalancerEnabled,
+    fsrsShortTermWithSteps,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4191,6 +4913,33 @@ class $CollectionMetaTable extends CollectionMeta
         ),
       );
     }
+    if (data.containsKey('fsrs_enabled')) {
+      context.handle(
+        _fsrsEnabledMeta,
+        fsrsEnabled.isAcceptableOrUnknown(
+          data['fsrs_enabled']!,
+          _fsrsEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('load_balancer_enabled')) {
+      context.handle(
+        _loadBalancerEnabledMeta,
+        loadBalancerEnabled.isAcceptableOrUnknown(
+          data['load_balancer_enabled']!,
+          _loadBalancerEnabledMeta,
+        ),
+      );
+    }
+    if (data.containsKey('fsrs_short_term_with_steps')) {
+      context.handle(
+        _fsrsShortTermWithStepsMeta,
+        fsrsShortTermWithSteps.isAcceptableOrUnknown(
+          data['fsrs_short_term_with_steps']!,
+          _fsrsShortTermWithStepsMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -4212,6 +4961,18 @@ class $CollectionMetaTable extends CollectionMeta
         DriftSqlType.int,
         data['${effectivePrefix}rollover_hour'],
       )!,
+      fsrsEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}fsrs_enabled'],
+      )!,
+      loadBalancerEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}load_balancer_enabled'],
+      )!,
+      fsrsShortTermWithSteps: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}fsrs_short_term_with_steps'],
+      )!,
     );
   }
 
@@ -4226,10 +4987,19 @@ class CollectionMetaData extends DataClass
   final int id;
   final int createdAt;
   final int rolloverHour;
+
+  /// Collection-wide options, as in Anki: FSRS on/off, the load balancer
+  /// (on by default), and FSRS short-term scheduling with learning steps.
+  final bool fsrsEnabled;
+  final bool loadBalancerEnabled;
+  final bool fsrsShortTermWithSteps;
   const CollectionMetaData({
     required this.id,
     required this.createdAt,
     required this.rolloverHour,
+    required this.fsrsEnabled,
+    required this.loadBalancerEnabled,
+    required this.fsrsShortTermWithSteps,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4237,6 +5007,9 @@ class CollectionMetaData extends DataClass
     map['id'] = Variable<int>(id);
     map['created_at'] = Variable<int>(createdAt);
     map['rollover_hour'] = Variable<int>(rolloverHour);
+    map['fsrs_enabled'] = Variable<bool>(fsrsEnabled);
+    map['load_balancer_enabled'] = Variable<bool>(loadBalancerEnabled);
+    map['fsrs_short_term_with_steps'] = Variable<bool>(fsrsShortTermWithSteps);
     return map;
   }
 
@@ -4245,6 +5018,9 @@ class CollectionMetaData extends DataClass
       id: Value(id),
       createdAt: Value(createdAt),
       rolloverHour: Value(rolloverHour),
+      fsrsEnabled: Value(fsrsEnabled),
+      loadBalancerEnabled: Value(loadBalancerEnabled),
+      fsrsShortTermWithSteps: Value(fsrsShortTermWithSteps),
     );
   }
 
@@ -4257,6 +5033,13 @@ class CollectionMetaData extends DataClass
       id: serializer.fromJson<int>(json['id']),
       createdAt: serializer.fromJson<int>(json['createdAt']),
       rolloverHour: serializer.fromJson<int>(json['rolloverHour']),
+      fsrsEnabled: serializer.fromJson<bool>(json['fsrsEnabled']),
+      loadBalancerEnabled: serializer.fromJson<bool>(
+        json['loadBalancerEnabled'],
+      ),
+      fsrsShortTermWithSteps: serializer.fromJson<bool>(
+        json['fsrsShortTermWithSteps'],
+      ),
     );
   }
   @override
@@ -4266,15 +5049,28 @@ class CollectionMetaData extends DataClass
       'id': serializer.toJson<int>(id),
       'createdAt': serializer.toJson<int>(createdAt),
       'rolloverHour': serializer.toJson<int>(rolloverHour),
+      'fsrsEnabled': serializer.toJson<bool>(fsrsEnabled),
+      'loadBalancerEnabled': serializer.toJson<bool>(loadBalancerEnabled),
+      'fsrsShortTermWithSteps': serializer.toJson<bool>(fsrsShortTermWithSteps),
     };
   }
 
-  CollectionMetaData copyWith({int? id, int? createdAt, int? rolloverHour}) =>
-      CollectionMetaData(
-        id: id ?? this.id,
-        createdAt: createdAt ?? this.createdAt,
-        rolloverHour: rolloverHour ?? this.rolloverHour,
-      );
+  CollectionMetaData copyWith({
+    int? id,
+    int? createdAt,
+    int? rolloverHour,
+    bool? fsrsEnabled,
+    bool? loadBalancerEnabled,
+    bool? fsrsShortTermWithSteps,
+  }) => CollectionMetaData(
+    id: id ?? this.id,
+    createdAt: createdAt ?? this.createdAt,
+    rolloverHour: rolloverHour ?? this.rolloverHour,
+    fsrsEnabled: fsrsEnabled ?? this.fsrsEnabled,
+    loadBalancerEnabled: loadBalancerEnabled ?? this.loadBalancerEnabled,
+    fsrsShortTermWithSteps:
+        fsrsShortTermWithSteps ?? this.fsrsShortTermWithSteps,
+  );
   CollectionMetaData copyWithCompanion(CollectionMetaCompanion data) {
     return CollectionMetaData(
       id: data.id.present ? data.id.value : this.id,
@@ -4282,6 +5078,15 @@ class CollectionMetaData extends DataClass
       rolloverHour: data.rolloverHour.present
           ? data.rolloverHour.value
           : this.rolloverHour,
+      fsrsEnabled: data.fsrsEnabled.present
+          ? data.fsrsEnabled.value
+          : this.fsrsEnabled,
+      loadBalancerEnabled: data.loadBalancerEnabled.present
+          ? data.loadBalancerEnabled.value
+          : this.loadBalancerEnabled,
+      fsrsShortTermWithSteps: data.fsrsShortTermWithSteps.present
+          ? data.fsrsShortTermWithSteps.value
+          : this.fsrsShortTermWithSteps,
     );
   }
 
@@ -4290,45 +5095,75 @@ class CollectionMetaData extends DataClass
     return (StringBuffer('CollectionMetaData(')
           ..write('id: $id, ')
           ..write('createdAt: $createdAt, ')
-          ..write('rolloverHour: $rolloverHour')
+          ..write('rolloverHour: $rolloverHour, ')
+          ..write('fsrsEnabled: $fsrsEnabled, ')
+          ..write('loadBalancerEnabled: $loadBalancerEnabled, ')
+          ..write('fsrsShortTermWithSteps: $fsrsShortTermWithSteps')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, createdAt, rolloverHour);
+  int get hashCode => Object.hash(
+    id,
+    createdAt,
+    rolloverHour,
+    fsrsEnabled,
+    loadBalancerEnabled,
+    fsrsShortTermWithSteps,
+  );
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       (other is CollectionMetaData &&
           other.id == this.id &&
           other.createdAt == this.createdAt &&
-          other.rolloverHour == this.rolloverHour);
+          other.rolloverHour == this.rolloverHour &&
+          other.fsrsEnabled == this.fsrsEnabled &&
+          other.loadBalancerEnabled == this.loadBalancerEnabled &&
+          other.fsrsShortTermWithSteps == this.fsrsShortTermWithSteps);
 }
 
 class CollectionMetaCompanion extends UpdateCompanion<CollectionMetaData> {
   final Value<int> id;
   final Value<int> createdAt;
   final Value<int> rolloverHour;
+  final Value<bool> fsrsEnabled;
+  final Value<bool> loadBalancerEnabled;
+  final Value<bool> fsrsShortTermWithSteps;
   const CollectionMetaCompanion({
     this.id = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rolloverHour = const Value.absent(),
+    this.fsrsEnabled = const Value.absent(),
+    this.loadBalancerEnabled = const Value.absent(),
+    this.fsrsShortTermWithSteps = const Value.absent(),
   });
   CollectionMetaCompanion.insert({
     this.id = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.rolloverHour = const Value.absent(),
+    this.fsrsEnabled = const Value.absent(),
+    this.loadBalancerEnabled = const Value.absent(),
+    this.fsrsShortTermWithSteps = const Value.absent(),
   });
   static Insertable<CollectionMetaData> custom({
     Expression<int>? id,
     Expression<int>? createdAt,
     Expression<int>? rolloverHour,
+    Expression<bool>? fsrsEnabled,
+    Expression<bool>? loadBalancerEnabled,
+    Expression<bool>? fsrsShortTermWithSteps,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
       if (createdAt != null) 'created_at': createdAt,
       if (rolloverHour != null) 'rollover_hour': rolloverHour,
+      if (fsrsEnabled != null) 'fsrs_enabled': fsrsEnabled,
+      if (loadBalancerEnabled != null)
+        'load_balancer_enabled': loadBalancerEnabled,
+      if (fsrsShortTermWithSteps != null)
+        'fsrs_short_term_with_steps': fsrsShortTermWithSteps,
     });
   }
 
@@ -4336,11 +5171,18 @@ class CollectionMetaCompanion extends UpdateCompanion<CollectionMetaData> {
     Value<int>? id,
     Value<int>? createdAt,
     Value<int>? rolloverHour,
+    Value<bool>? fsrsEnabled,
+    Value<bool>? loadBalancerEnabled,
+    Value<bool>? fsrsShortTermWithSteps,
   }) {
     return CollectionMetaCompanion(
       id: id ?? this.id,
       createdAt: createdAt ?? this.createdAt,
       rolloverHour: rolloverHour ?? this.rolloverHour,
+      fsrsEnabled: fsrsEnabled ?? this.fsrsEnabled,
+      loadBalancerEnabled: loadBalancerEnabled ?? this.loadBalancerEnabled,
+      fsrsShortTermWithSteps:
+          fsrsShortTermWithSteps ?? this.fsrsShortTermWithSteps,
     );
   }
 
@@ -4356,6 +5198,17 @@ class CollectionMetaCompanion extends UpdateCompanion<CollectionMetaData> {
     if (rolloverHour.present) {
       map['rollover_hour'] = Variable<int>(rolloverHour.value);
     }
+    if (fsrsEnabled.present) {
+      map['fsrs_enabled'] = Variable<bool>(fsrsEnabled.value);
+    }
+    if (loadBalancerEnabled.present) {
+      map['load_balancer_enabled'] = Variable<bool>(loadBalancerEnabled.value);
+    }
+    if (fsrsShortTermWithSteps.present) {
+      map['fsrs_short_term_with_steps'] = Variable<bool>(
+        fsrsShortTermWithSteps.value,
+      );
+    }
     return map;
   }
 
@@ -4364,7 +5217,10 @@ class CollectionMetaCompanion extends UpdateCompanion<CollectionMetaData> {
     return (StringBuffer('CollectionMetaCompanion(')
           ..write('id: $id, ')
           ..write('createdAt: $createdAt, ')
-          ..write('rolloverHour: $rolloverHour')
+          ..write('rolloverHour: $rolloverHour, ')
+          ..write('fsrsEnabled: $fsrsEnabled, ')
+          ..write('loadBalancerEnabled: $loadBalancerEnabled, ')
+          ..write('fsrsShortTermWithSteps: $fsrsShortTermWithSteps')
           ..write(')'))
         .toString();
   }
@@ -4414,6 +5270,13 @@ typedef $$DeckConfigsTableCreateCompanionBuilder =
       Value<int> hardIntervalPct,
       Value<int> newIntervalPct,
       Value<int> leechThreshold,
+      Value<bool> leechSuspends,
+      Value<int> minimumLapseInterval,
+      Value<String> fsrsParams,
+      Value<double> desiredRetention,
+      Value<double> historicalRetention,
+      Value<String> ignoreRevlogsBeforeDate,
+      Value<String> easyDaysPercentages,
       Value<int> maximumIntervalDays,
       Value<int> minEase,
       Value<int> newPerDay,
@@ -4433,6 +5296,13 @@ typedef $$DeckConfigsTableUpdateCompanionBuilder =
       Value<int> hardIntervalPct,
       Value<int> newIntervalPct,
       Value<int> leechThreshold,
+      Value<bool> leechSuspends,
+      Value<int> minimumLapseInterval,
+      Value<String> fsrsParams,
+      Value<double> desiredRetention,
+      Value<double> historicalRetention,
+      Value<String> ignoreRevlogsBeforeDate,
+      Value<String> easyDaysPercentages,
       Value<int> maximumIntervalDays,
       Value<int> minEase,
       Value<int> newPerDay,
@@ -4529,6 +5399,41 @@ class $$DeckConfigsTableFilterComposer
 
   ColumnFilters<int> get leechThreshold => $composableBuilder(
     column: $table.leechThreshold,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get leechSuspends => $composableBuilder(
+    column: $table.leechSuspends,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get minimumLapseInterval => $composableBuilder(
+    column: $table.minimumLapseInterval,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fsrsParams => $composableBuilder(
+    column: $table.fsrsParams,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get desiredRetention => $composableBuilder(
+    column: $table.desiredRetention,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get historicalRetention => $composableBuilder(
+    column: $table.historicalRetention,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get ignoreRevlogsBeforeDate => $composableBuilder(
+    column: $table.ignoreRevlogsBeforeDate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get easyDaysPercentages => $composableBuilder(
+    column: $table.easyDaysPercentages,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -4647,6 +5552,41 @@ class $$DeckConfigsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<bool> get leechSuspends => $composableBuilder(
+    column: $table.leechSuspends,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get minimumLapseInterval => $composableBuilder(
+    column: $table.minimumLapseInterval,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fsrsParams => $composableBuilder(
+    column: $table.fsrsParams,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get desiredRetention => $composableBuilder(
+    column: $table.desiredRetention,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get historicalRetention => $composableBuilder(
+    column: $table.historicalRetention,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get ignoreRevlogsBeforeDate => $composableBuilder(
+    column: $table.ignoreRevlogsBeforeDate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get easyDaysPercentages => $composableBuilder(
+    column: $table.easyDaysPercentages,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get maximumIntervalDays => $composableBuilder(
     column: $table.maximumIntervalDays,
     builder: (column) => ColumnOrderings(column),
@@ -4733,6 +5673,41 @@ class $$DeckConfigsTableAnnotationComposer
     builder: (column) => column,
   );
 
+  GeneratedColumn<bool> get leechSuspends => $composableBuilder(
+    column: $table.leechSuspends,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get minimumLapseInterval => $composableBuilder(
+    column: $table.minimumLapseInterval,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get fsrsParams => $composableBuilder(
+    column: $table.fsrsParams,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get desiredRetention => $composableBuilder(
+    column: $table.desiredRetention,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get historicalRetention => $composableBuilder(
+    column: $table.historicalRetention,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get ignoreRevlogsBeforeDate => $composableBuilder(
+    column: $table.ignoreRevlogsBeforeDate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get easyDaysPercentages => $composableBuilder(
+    column: $table.easyDaysPercentages,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<int> get maximumIntervalDays => $composableBuilder(
     column: $table.maximumIntervalDays,
     builder: (column) => column,
@@ -4815,6 +5790,13 @@ class $$DeckConfigsTableTableManager
                 Value<int> hardIntervalPct = const Value.absent(),
                 Value<int> newIntervalPct = const Value.absent(),
                 Value<int> leechThreshold = const Value.absent(),
+                Value<bool> leechSuspends = const Value.absent(),
+                Value<int> minimumLapseInterval = const Value.absent(),
+                Value<String> fsrsParams = const Value.absent(),
+                Value<double> desiredRetention = const Value.absent(),
+                Value<double> historicalRetention = const Value.absent(),
+                Value<String> ignoreRevlogsBeforeDate = const Value.absent(),
+                Value<String> easyDaysPercentages = const Value.absent(),
                 Value<int> maximumIntervalDays = const Value.absent(),
                 Value<int> minEase = const Value.absent(),
                 Value<int> newPerDay = const Value.absent(),
@@ -4832,6 +5814,13 @@ class $$DeckConfigsTableTableManager
                 hardIntervalPct: hardIntervalPct,
                 newIntervalPct: newIntervalPct,
                 leechThreshold: leechThreshold,
+                leechSuspends: leechSuspends,
+                minimumLapseInterval: minimumLapseInterval,
+                fsrsParams: fsrsParams,
+                desiredRetention: desiredRetention,
+                historicalRetention: historicalRetention,
+                ignoreRevlogsBeforeDate: ignoreRevlogsBeforeDate,
+                easyDaysPercentages: easyDaysPercentages,
                 maximumIntervalDays: maximumIntervalDays,
                 minEase: minEase,
                 newPerDay: newPerDay,
@@ -4851,6 +5840,13 @@ class $$DeckConfigsTableTableManager
                 Value<int> hardIntervalPct = const Value.absent(),
                 Value<int> newIntervalPct = const Value.absent(),
                 Value<int> leechThreshold = const Value.absent(),
+                Value<bool> leechSuspends = const Value.absent(),
+                Value<int> minimumLapseInterval = const Value.absent(),
+                Value<String> fsrsParams = const Value.absent(),
+                Value<double> desiredRetention = const Value.absent(),
+                Value<double> historicalRetention = const Value.absent(),
+                Value<String> ignoreRevlogsBeforeDate = const Value.absent(),
+                Value<String> easyDaysPercentages = const Value.absent(),
                 Value<int> maximumIntervalDays = const Value.absent(),
                 Value<int> minEase = const Value.absent(),
                 Value<int> newPerDay = const Value.absent(),
@@ -4868,6 +5864,13 @@ class $$DeckConfigsTableTableManager
                 hardIntervalPct: hardIntervalPct,
                 newIntervalPct: newIntervalPct,
                 leechThreshold: leechThreshold,
+                leechSuspends: leechSuspends,
+                minimumLapseInterval: minimumLapseInterval,
+                fsrsParams: fsrsParams,
+                desiredRetention: desiredRetention,
+                historicalRetention: historicalRetention,
+                ignoreRevlogsBeforeDate: ignoreRevlogsBeforeDate,
+                easyDaysPercentages: easyDaysPercentages,
                 maximumIntervalDays: maximumIntervalDays,
                 minEase: minEase,
                 newPerDay: newPerDay,
@@ -6959,6 +7962,10 @@ typedef $$CardsTableCreateCompanionBuilder =
       Value<int> lapses,
       Value<int> stepIndex,
       Value<int?> lastReviewedAt,
+      Value<double?> fsrsStability,
+      Value<double?> fsrsDifficulty,
+      Value<double?> fsrsDesiredRetention,
+      Value<double?> fsrsDecay,
     });
 typedef $$CardsTableUpdateCompanionBuilder =
     CardsCompanion Function({
@@ -6974,6 +7981,10 @@ typedef $$CardsTableUpdateCompanionBuilder =
       Value<int> lapses,
       Value<int> stepIndex,
       Value<int?> lastReviewedAt,
+      Value<double?> fsrsStability,
+      Value<double?> fsrsDifficulty,
+      Value<double?> fsrsDesiredRetention,
+      Value<double?> fsrsDecay,
     });
 
 final class $$CardsTableReferences
@@ -7090,6 +8101,26 @@ class $$CardsTableFilterComposer extends Composer<_$AppDatabase, $CardsTable> {
 
   ColumnFilters<int> get lastReviewedAt => $composableBuilder(
     column: $table.lastReviewedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get fsrsStability => $composableBuilder(
+    column: $table.fsrsStability,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get fsrsDifficulty => $composableBuilder(
+    column: $table.fsrsDifficulty,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get fsrsDesiredRetention => $composableBuilder(
+    column: $table.fsrsDesiredRetention,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get fsrsDecay => $composableBuilder(
+    column: $table.fsrsDecay,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7224,6 +8255,26 @@ class $$CardsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get fsrsStability => $composableBuilder(
+    column: $table.fsrsStability,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get fsrsDifficulty => $composableBuilder(
+    column: $table.fsrsDifficulty,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get fsrsDesiredRetention => $composableBuilder(
+    column: $table.fsrsDesiredRetention,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get fsrsDecay => $composableBuilder(
+    column: $table.fsrsDecay,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$NotesTableOrderingComposer get noteId {
     final $$NotesTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -7313,6 +8364,24 @@ class $$CardsTableAnnotationComposer
     column: $table.lastReviewedAt,
     builder: (column) => column,
   );
+
+  GeneratedColumn<double> get fsrsStability => $composableBuilder(
+    column: $table.fsrsStability,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get fsrsDifficulty => $composableBuilder(
+    column: $table.fsrsDifficulty,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get fsrsDesiredRetention => $composableBuilder(
+    column: $table.fsrsDesiredRetention,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get fsrsDecay =>
+      $composableBuilder(column: $table.fsrsDecay, builder: (column) => column);
 
   $$NotesTableAnnotationComposer get noteId {
     final $$NotesTableAnnotationComposer composer = $composerBuilder(
@@ -7426,6 +8495,10 @@ class $$CardsTableTableManager
                 Value<int> lapses = const Value.absent(),
                 Value<int> stepIndex = const Value.absent(),
                 Value<int?> lastReviewedAt = const Value.absent(),
+                Value<double?> fsrsStability = const Value.absent(),
+                Value<double?> fsrsDifficulty = const Value.absent(),
+                Value<double?> fsrsDesiredRetention = const Value.absent(),
+                Value<double?> fsrsDecay = const Value.absent(),
               }) => CardsCompanion(
                 id: id,
                 noteId: noteId,
@@ -7439,6 +8512,10 @@ class $$CardsTableTableManager
                 lapses: lapses,
                 stepIndex: stepIndex,
                 lastReviewedAt: lastReviewedAt,
+                fsrsStability: fsrsStability,
+                fsrsDifficulty: fsrsDifficulty,
+                fsrsDesiredRetention: fsrsDesiredRetention,
+                fsrsDecay: fsrsDecay,
               ),
           createCompanionCallback:
               ({
@@ -7454,6 +8531,10 @@ class $$CardsTableTableManager
                 Value<int> lapses = const Value.absent(),
                 Value<int> stepIndex = const Value.absent(),
                 Value<int?> lastReviewedAt = const Value.absent(),
+                Value<double?> fsrsStability = const Value.absent(),
+                Value<double?> fsrsDifficulty = const Value.absent(),
+                Value<double?> fsrsDesiredRetention = const Value.absent(),
+                Value<double?> fsrsDecay = const Value.absent(),
               }) => CardsCompanion.insert(
                 id: id,
                 noteId: noteId,
@@ -7467,6 +8548,10 @@ class $$CardsTableTableManager
                 lapses: lapses,
                 stepIndex: stepIndex,
                 lastReviewedAt: lastReviewedAt,
+                fsrsStability: fsrsStability,
+                fsrsDifficulty: fsrsDifficulty,
+                fsrsDesiredRetention: fsrsDesiredRetention,
+                fsrsDecay: fsrsDecay,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -7575,6 +8660,7 @@ typedef $$RevLogTableCreateCompanionBuilder =
       required int ivlAfter,
       required int easeAfter,
       Value<int> timeTakenMs,
+      Value<int> kind,
     });
 typedef $$RevLogTableUpdateCompanionBuilder =
     RevLogCompanion Function({
@@ -7586,6 +8672,7 @@ typedef $$RevLogTableUpdateCompanionBuilder =
       Value<int> ivlAfter,
       Value<int> easeAfter,
       Value<int> timeTakenMs,
+      Value<int> kind,
     });
 
 final class $$RevLogTableReferences
@@ -7651,6 +8738,11 @@ class $$RevLogTableFilterComposer
 
   ColumnFilters<int> get timeTakenMs => $composableBuilder(
     column: $table.timeTakenMs,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get kind => $composableBuilder(
+    column: $table.kind,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7722,6 +8814,11 @@ class $$RevLogTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<int> get kind => $composableBuilder(
+    column: $table.kind,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   $$CardsTableOrderingComposer get cardId {
     final $$CardsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -7779,6 +8876,9 @@ class $$RevLogTableAnnotationComposer
     column: $table.timeTakenMs,
     builder: (column) => column,
   );
+
+  GeneratedColumn<int> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => column);
 
   $$CardsTableAnnotationComposer get cardId {
     final $$CardsTableAnnotationComposer composer = $composerBuilder(
@@ -7840,6 +8940,7 @@ class $$RevLogTableTableManager
                 Value<int> ivlAfter = const Value.absent(),
                 Value<int> easeAfter = const Value.absent(),
                 Value<int> timeTakenMs = const Value.absent(),
+                Value<int> kind = const Value.absent(),
               }) => RevLogCompanion(
                 id: id,
                 cardId: cardId,
@@ -7849,6 +8950,7 @@ class $$RevLogTableTableManager
                 ivlAfter: ivlAfter,
                 easeAfter: easeAfter,
                 timeTakenMs: timeTakenMs,
+                kind: kind,
               ),
           createCompanionCallback:
               ({
@@ -7860,6 +8962,7 @@ class $$RevLogTableTableManager
                 required int ivlAfter,
                 required int easeAfter,
                 Value<int> timeTakenMs = const Value.absent(),
+                Value<int> kind = const Value.absent(),
               }) => RevLogCompanion.insert(
                 id: id,
                 cardId: cardId,
@@ -7869,6 +8972,7 @@ class $$RevLogTableTableManager
                 ivlAfter: ivlAfter,
                 easeAfter: easeAfter,
                 timeTakenMs: timeTakenMs,
+                kind: kind,
               ),
           withReferenceMapper: (p0) => p0
               .map(
@@ -7940,12 +9044,18 @@ typedef $$CollectionMetaTableCreateCompanionBuilder =
       Value<int> id,
       Value<int> createdAt,
       Value<int> rolloverHour,
+      Value<bool> fsrsEnabled,
+      Value<bool> loadBalancerEnabled,
+      Value<bool> fsrsShortTermWithSteps,
     });
 typedef $$CollectionMetaTableUpdateCompanionBuilder =
     CollectionMetaCompanion Function({
       Value<int> id,
       Value<int> createdAt,
       Value<int> rolloverHour,
+      Value<bool> fsrsEnabled,
+      Value<bool> loadBalancerEnabled,
+      Value<bool> fsrsShortTermWithSteps,
     });
 
 class $$CollectionMetaTableFilterComposer
@@ -7969,6 +9079,21 @@ class $$CollectionMetaTableFilterComposer
 
   ColumnFilters<int> get rolloverHour => $composableBuilder(
     column: $table.rolloverHour,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get fsrsEnabled => $composableBuilder(
+    column: $table.fsrsEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get loadBalancerEnabled => $composableBuilder(
+    column: $table.loadBalancerEnabled,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get fsrsShortTermWithSteps => $composableBuilder(
+    column: $table.fsrsShortTermWithSteps,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -7996,6 +9121,21 @@ class $$CollectionMetaTableOrderingComposer
     column: $table.rolloverHour,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get fsrsEnabled => $composableBuilder(
+    column: $table.fsrsEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get loadBalancerEnabled => $composableBuilder(
+    column: $table.loadBalancerEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get fsrsShortTermWithSteps => $composableBuilder(
+    column: $table.fsrsShortTermWithSteps,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$CollectionMetaTableAnnotationComposer
@@ -8015,6 +9155,21 @@ class $$CollectionMetaTableAnnotationComposer
 
   GeneratedColumn<int> get rolloverHour => $composableBuilder(
     column: $table.rolloverHour,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get fsrsEnabled => $composableBuilder(
+    column: $table.fsrsEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get loadBalancerEnabled => $composableBuilder(
+    column: $table.loadBalancerEnabled,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get fsrsShortTermWithSteps => $composableBuilder(
+    column: $table.fsrsShortTermWithSteps,
     builder: (column) => column,
   );
 }
@@ -8059,20 +9214,32 @@ class $$CollectionMetaTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int> rolloverHour = const Value.absent(),
+                Value<bool> fsrsEnabled = const Value.absent(),
+                Value<bool> loadBalancerEnabled = const Value.absent(),
+                Value<bool> fsrsShortTermWithSteps = const Value.absent(),
               }) => CollectionMetaCompanion(
                 id: id,
                 createdAt: createdAt,
                 rolloverHour: rolloverHour,
+                fsrsEnabled: fsrsEnabled,
+                loadBalancerEnabled: loadBalancerEnabled,
+                fsrsShortTermWithSteps: fsrsShortTermWithSteps,
               ),
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
                 Value<int> createdAt = const Value.absent(),
                 Value<int> rolloverHour = const Value.absent(),
+                Value<bool> fsrsEnabled = const Value.absent(),
+                Value<bool> loadBalancerEnabled = const Value.absent(),
+                Value<bool> fsrsShortTermWithSteps = const Value.absent(),
               }) => CollectionMetaCompanion.insert(
                 id: id,
                 createdAt: createdAt,
                 rolloverHour: rolloverHour,
+                fsrsEnabled: fsrsEnabled,
+                loadBalancerEnabled: loadBalancerEnabled,
+                fsrsShortTermWithSteps: fsrsShortTermWithSteps,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable(table), BaseReferences(db, table, e)))

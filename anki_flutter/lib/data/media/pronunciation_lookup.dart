@@ -20,10 +20,19 @@ class PronunciationLookup {
 
   final HttpClient Function() _newClient;
 
-  /// Identifies the app to the sites it queries. Wikimedia's User-Agent
-  /// policy requires a way to contact the client's author; without one its
-  /// media server answers 429 to every download.
-  static const userAgent = 'AnkiPersonal/1.0 (https://github.com/ZakharAlexeev/anki-flutter)';
+  /// How the app introduces itself. The two sources want different things:
+  /// Wikimedia's User-Agent policy requires a contact link (without one its
+  /// media server answers 429 to every download), while Oxford's bot filter
+  /// answers 403 to any client whose User-Agent contains a link. So the
+  /// contact goes to Wikimedia only.
+  static const userAgent = 'AnkiPersonal/1.0 (personal flashcard app)';
+  static const wikimediaUserAgent = 'AnkiPersonal/1.0 (https://github.com/ZakharAlexeev/anki-flutter)';
+
+  static String userAgentFor(Uri uri) {
+    final host = uri.host.toLowerCase();
+    final wikimedia = host.endsWith('wikimedia.org') || host.endsWith('wiktionary.org');
+    return wikimedia ? wikimediaUserAgent : userAgent;
+  }
 
   static const _timeout = Duration(seconds: 12);
 
@@ -36,13 +45,18 @@ class PronunciationLookup {
     final variants = searchVariants(term);
     if (variants.isEmpty) return null;
 
-    final fileName = 'pron_${slug(variants.first)}.mp3';
-    final target = File('${mediaDir.path}${Platform.pathSeparator}$fileName');
-    if (await target.exists()) return fileName;
+    final word = slug(variants.first);
+    // Files are named by source, so a Wiktionary recording saved while
+    // Oxford was unavailable never stands in for Oxford's on later cards.
+    File fileFor(String source) => File('${mediaDir.path}${Platform.pathSeparator}pron_${source}_$word.mp3');
+    final oxfordFile = fileFor('ox');
+    if (await oxfordFile.exists()) return _fileName(oxfordFile);
 
     var reachedAnySource = false;
     var foundButBlocked = false;
-    for (final source in [_oxford, _wiktionary]) {
+    for (final (name, source) in [('ox', _oxford), ('wk', _wiktionary)]) {
+      final target = fileFor(name);
+      if (name != 'ox' && await target.exists()) return _fileName(target);
       for (final variant in variants) {
         Uri? url;
         try {
@@ -53,7 +67,7 @@ class PronunciationLookup {
           if (bytes == null) continue;
           await mediaDir.create(recursive: true);
           await target.writeAsBytes(bytes, flush: true);
-          return fileName;
+          return _fileName(target);
         } on _Unreachable {
           // A recording exists but its server refused or timed out: that's
           // a network problem, not "this word has no recording".
@@ -64,6 +78,8 @@ class PronunciationLookup {
     if (!reachedAnySource || foundButBlocked) throw const PronunciationNetworkException();
     return null;
   }
+
+  static String _fileName(File f) => f.uri.pathSegments.last;
 
   // --- Oxford Learner's Dictionaries ---------------------------------------
 
@@ -216,14 +232,16 @@ class PronunciationLookup {
 
   Future<_Response> _get(Uri uri) async {
     final client = _newClient()
-      ..userAgent = userAgent
+      ..userAgent = userAgentFor(uri)
       ..connectionTimeout = _timeout;
     try {
       final req = await client.getUrl(uri).timeout(_timeout);
       final res = await req.close().timeout(_timeout);
       final builder = BytesBuilder(copy: false);
       await res.forEach(builder.add).timeout(_timeout);
-      if (res.statusCode == 429 || res.statusCode >= 500) throw const _Unreachable();
+      // Refused (403 bot filter, 429 rate limit) or broken: the source is
+      // unavailable, which is different from "no recording of this word".
+      if (res.statusCode == 403 || res.statusCode == 429 || res.statusCode >= 500) throw const _Unreachable();
       return _Response(res.statusCode, builder.takeBytes());
     } on SocketException {
       throw const _Unreachable();

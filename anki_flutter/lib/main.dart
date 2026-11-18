@@ -10,6 +10,7 @@ import 'data/repositories/stats_repository.dart';
 import 'data/repositories/study_repository.dart';
 import 'ui/home/home_shell.dart';
 import 'ui/theme/app_theme.dart';
+import 'ui/theme/theme_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,11 +23,20 @@ Future<void> main() async {
   final notes = NoteRepository(db, decks, notetypes);
   final study = StudyRepository(db);
   final stats = StatsRepository(db);
+  final theme = await ThemeController.load();
 
-  runApp(AnkiFlutterApp(db: db, decks: decks, notetypes: notetypes, notes: notes, study: study, stats: stats));
+  runApp(AnkiFlutterApp(
+    db: db,
+    decks: decks,
+    notetypes: notetypes,
+    notes: notes,
+    study: study,
+    stats: stats,
+    theme: theme,
+  ));
 }
 
-class AnkiFlutterApp extends StatelessWidget {
+class AnkiFlutterApp extends StatefulWidget {
   const AnkiFlutterApp({
     super.key,
     required this.db,
@@ -35,6 +45,7 @@ class AnkiFlutterApp extends StatelessWidget {
     required this.notes,
     required this.study,
     required this.stats,
+    this.theme,
   });
 
   final AppDatabase db;
@@ -44,25 +55,47 @@ class AnkiFlutterApp extends StatelessWidget {
   final StudyRepository study;
   final StatsRepository stats;
 
+  /// The saved light/dark choice; null (tests) means an in-memory one that
+  /// follows the system.
+  final ThemeController? theme;
+
+  @override
+  State<AnkiFlutterApp> createState() => _AnkiFlutterAppState();
+}
+
+class _AnkiFlutterAppState extends State<AnkiFlutterApp> {
+  late final ThemeController _theme = widget.theme ?? ThemeController();
+
+  @override
+  void dispose() {
+    if (widget.theme == null) _theme.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final w = widget;
     return MultiProvider(
       providers: [
-        Provider<AppDatabase>.value(value: db),
-        Provider<DeckRepository>.value(value: decks),
-        Provider<NotetypeRepository>.value(value: notetypes),
-        Provider<NoteRepository>.value(value: notes),
-        Provider<StudyRepository>.value(value: study),
-        Provider<StatsRepository>.value(value: stats),
-        Provider<PronunciationService>(create: (_) => PronunciationService(db, notes, notetypes)),
+        Provider<AppDatabase>.value(value: w.db),
+        Provider<DeckRepository>.value(value: w.decks),
+        Provider<NotetypeRepository>.value(value: w.notetypes),
+        Provider<NoteRepository>.value(value: w.notes),
+        Provider<StudyRepository>.value(value: w.study),
+        Provider<StatsRepository>.value(value: w.stats),
+        Provider<PronunciationService>(create: (_) => PronunciationService(w.db, w.notes, w.notetypes)),
+        ChangeNotifierProvider<ThemeController>.value(value: _theme),
       ],
-      child: MaterialApp(
-        title: 'Anki',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.light(),
-        darkTheme: AppTheme.dark(),
-        themeMode: ThemeMode.system,
-        home: const HomeShell(),
+      child: ListenableBuilder(
+        listenable: _theme,
+        builder: (context, _) => MaterialApp(
+          title: 'Anki',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.light(),
+          darkTheme: AppTheme.dark(),
+          themeMode: _theme.mode,
+          home: const HomeShell(),
+        ),
       ),
     );
   }

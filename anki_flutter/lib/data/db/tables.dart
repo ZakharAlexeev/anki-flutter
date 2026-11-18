@@ -40,6 +40,23 @@ class DeckConfigs extends Table {
   IntColumn get hardIntervalPct => integer().withDefault(const Constant(120))();
   IntColumn get newIntervalPct => integer().withDefault(const Constant(0))();
   IntColumn get leechThreshold => integer().withDefault(const Constant(8))();
+
+  /// Anki's "leech action": suspend the card (true), or only tag it
+  /// `leech` (false - Anki's default).
+  BoolColumn get leechSuspends => boolean().withDefault(const Constant(false))();
+
+  /// SM-2: the shortest interval after a lapse (Anki "minimum interval").
+  IntColumn get minimumLapseInterval => integer().withDefault(const Constant(1))();
+
+  /// FSRS parameters, comma-separated (17, 19 or 21 numbers; empty = the
+  /// FSRS-6 defaults).
+  TextColumn get fsrsParams => text().withDefault(const Constant(''))();
+  RealColumn get desiredRetention => real().withDefault(const Constant(0.9))();
+  RealColumn get historicalRetention => real().withDefault(const Constant(0.9))();
+  TextColumn get ignoreRevlogsBeforeDate => text().withDefault(const Constant(''))();
+
+  /// Load-balancer easy days, Mon..Sun, comma-separated (empty = normal).
+  TextColumn get easyDaysPercentages => text().withDefault(const Constant(''))();
   IntColumn get maximumIntervalDays => integer().withDefault(const Constant(36500))();
   IntColumn get minEase => integer().withDefault(const Constant(1300))();
   IntColumn get newPerDay => integer().withDefault(const Constant(20))();
@@ -126,7 +143,19 @@ class Cards extends Table {
   IntColumn get reps => integer().withDefault(const Constant(0))();
   IntColumn get lapses => integer().withDefault(const Constant(0))();
   IntColumn get stepIndex => integer().withDefault(const Constant(0))();
+
+  /// When the card was last answered (epoch seconds) - Anki's `lrt`, which
+  /// FSRS uses to count the days since the last review.
   IntColumn get lastReviewedAt => integer().nullable()();
+
+  /// FSRS memory state (Anki card data `s`/`d`), null until computed.
+  RealColumn get fsrsStability => real().nullable()();
+  RealColumn get fsrsDifficulty => real().nullable()();
+
+  /// Desired retention and decay the card was last scheduled with (`dr`,
+  /// `decay`), kept for export to Anki.
+  RealColumn get fsrsDesiredRetention => real().nullable()();
+  RealColumn get fsrsDecay => real().nullable()();
 
   @override
   Set<Column> get primaryKey => {id};
@@ -138,16 +167,32 @@ class RevLog extends Table {
   IntColumn get reviewedAt => integer()();
   /// 1=Again, 2=Hard, 3=Good, 4=Easy - matches Anki's revlog.ease convention.
   IntColumn get rating => integer()();
+
+  /// Anki's revlog `lastIvl` / `ivl`: positive days, negative seconds for
+  /// learning steps.
   IntColumn get ivlBefore => integer()();
   IntColumn get ivlAfter => integer()();
+
+  /// Anki's revlog `factor`: the ease in permille, or for FSRS cards the
+  /// difficulty shifted into 100-1100.
   IntColumn get easeAfter => integer()();
   IntColumn get timeTakenMs => integer().withDefault(const Constant(0))();
+
+  /// Anki's revlog `type`: 0 learning, 1 review, 2 relearning, 3 filtered,
+  /// 4 manual, 5 rescheduled.
+  IntColumn get kind => integer().withDefault(const Constant(1))();
 }
 
 class CollectionMeta extends Table {
   IntColumn get id => integer().withDefault(const Constant(1))();
   IntColumn get createdAt => integer().clientDefault(epochMillisNow)();
   IntColumn get rolloverHour => integer().withDefault(const Constant(4))();
+
+  /// Collection-wide options, as in Anki: FSRS on/off, the load balancer
+  /// (on by default), and FSRS short-term scheduling with learning steps.
+  BoolColumn get fsrsEnabled => boolean().withDefault(const Constant(false))();
+  BoolColumn get loadBalancerEnabled => boolean().withDefault(const Constant(true))();
+  BoolColumn get fsrsShortTermWithSteps => boolean().withDefault(const Constant(false))();
 
   @override
   Set<Column> get primaryKey => {id};

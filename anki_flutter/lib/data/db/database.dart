@@ -24,7 +24,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -51,6 +51,35 @@ class AppDatabase extends _$AppDatabase {
             );
           }
           if (from < 3) await _removeStarterDecks();
+          if (from < 4) await m.addColumn(deckConfigs, deckConfigs.leechSuspends);
+          if (from < 5) {
+            // FSRS: card memory state, Anki revlog kinds, preset options and
+            // collection switches.
+            for (final c in [cards.fsrsStability, cards.fsrsDifficulty, cards.fsrsDesiredRetention, cards.fsrsDecay]) {
+              await m.addColumn(cards, c);
+            }
+            await m.addColumn(revLog, revLog.kind);
+            // Older rows weren't typed: a review that started from no
+            // interval was a learning step, anything else a review.
+            await customStatement('UPDATE rev_log SET kind = CASE WHEN ivl_before = 0 THEN 0 ELSE 1 END');
+            for (final c in [
+              deckConfigs.minimumLapseInterval,
+              deckConfigs.fsrsParams,
+              deckConfigs.desiredRetention,
+              deckConfigs.historicalRetention,
+              deckConfigs.ignoreRevlogsBeforeDate,
+              deckConfigs.easyDaysPercentages,
+            ]) {
+              await m.addColumn(deckConfigs, c);
+            }
+            for (final c in [
+              collectionMeta.fsrsEnabled,
+              collectionMeta.loadBalancerEnabled,
+              collectionMeta.fsrsShortTermWithSteps,
+            ]) {
+              await m.addColumn(collectionMeta, c);
+            }
+          }
         },
         beforeOpen: (details) async {
           // SQLite defaults foreign-key enforcement to OFF for backwards

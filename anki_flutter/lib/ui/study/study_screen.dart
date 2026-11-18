@@ -15,6 +15,7 @@ import '../../data/repositories/deck_repository.dart';
 import '../../data/repositories/note_repository.dart';
 import '../../data/repositories/notetype_repository.dart';
 import '../../data/repositories/study_repository.dart';
+import '../../domain/scheduler/scheduler.dart' show IntervalKind, InSecs, InDays;
 import '../../domain/template_renderer.dart';
 import '../theme/app_theme.dart';
 import 'html_view.dart';
@@ -46,7 +47,7 @@ class _StudyScreenState extends State<StudyScreen> {
   String? _cardDeckName;
   String? _resolvedQuestionHtml;
   String? _resolvedAnswerHtml;
-  Map<Rating, CardSchedState>? _previews;
+  Map<Rating, IntervalKind>? _previews;
   DateTime? _cardShownAt;
   List<String> _questionSounds = const [];
   List<String> _answerSounds = const [];
@@ -57,6 +58,9 @@ class _StudyScreenState extends State<StudyScreen> {
   // the platform audio plugin.
   AudioPlayer? _player;
   int _playToken = 0;
+
+  /// Answers given in this session, newest last, for Undo.
+  final List<UndoEntry> _undoStack = [];
 
   StudyRepository get _study => context.read<StudyRepository>();
   NoteRepository get _notes => context.read<NoteRepository>();
@@ -78,8 +82,8 @@ class _StudyScreenState extends State<StudyScreen> {
 
   List<String> get _currentSounds => _showAnswer ? _answerSounds : _questionSounds;
 
-  /// Plays [files] one after another, like Anki. Starting another playback
-  /// (next card, replay tap) cancels whatever is still queued.
+  /// Plays [files] one after another, like Anki; an empty list just stops.
+  /// Starting another playback cancels whatever is still queued.
   Future<void> _play(List<String> files) async {
     final token = ++_playToken;
     if (files.isEmpty) {
@@ -169,16 +173,16 @@ class _StudyScreenState extends State<StudyScreen> {
       _questionSounds = questionSounds;
       _answerSounds = MediaResolver.soundFiles(rendered.answerHtml);
     });
-    _play(questionSounds);
+    // Audio plays only when asked for (the speaker button), never on its
+    // own; a new card just silences whatever the last one was playing.
+    _play(const []);
   }
 
   void _reveal() {
     if (_showAnswer || _rendered == null) return;
     HapticFeedback.selectionClick();
     setState(() => _showAnswer = true);
-    // The answer usually repeats the question ({{FrontSide}}); only play
-    // what's new on this side, as Anki does.
-    _play([for (final s in _answerSounds) if (!_questionSounds.contains(s)) s]);
+    _play(const []);
   }
 
   Future<void> _answer(Rating rating) async {
@@ -188,23 +192,18 @@ class _StudyScreenState extends State<StudyScreen> {
 
     final elapsedMs = _cardShownAt == null ? 0 : DateTime.now().difference(_cardShownAt!).inMilliseconds;
     try {
-      final outcome = await _study.answerCard(cardId: _current.id, rating: rating, timeTakenMs: elapsedMs);
+      final result = await _study.answerCard(cardId: _current.id, rating: rating, timeTakenMs: elapsedMs);
+      _undoStack.add(result.undo);
       final freshQueue = await _fetchQueue();
       if (!mounted) return;
-      setState(() {
-        _queue = freshQueue;
-        _answered++;
-        _showAnswer = false;
-        _rendered = null;
-        _resolvedQuestionHtml = null;
-        _resolvedAnswerHtml = null;
-        _previews = null;
-        _answering = false;
-      });
-      if (outcome.becameLeech && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Карточку слишком часто забывали — она отложена')),
-        );
+      _showCard(freshQueue, answered: _answered + 1);
+      if (result.outcome.becameLeech && mounted) {
+        final suspended = result.outcome.state.queue == CardQueue.suspended;
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(suspended
+              ? 'Трудная карточка: её часто забывают, поэтому она отложена'
+              : 'Трудная карточка: её часто забывают — добавлена метка leech'),
+        ));
       }
       if (_queue.isNotEmpty) await _renderCurrent();
     } catch (e) {
@@ -212,6 +211,46 @@ class _StudyScreenState extends State<StudyScreen> {
       setState(() => _answering = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Ошибка: $e')));
     }
+  }
+
+  /// Takes the last answer back and shows that card again, question side
+  /// up - like Anki's Undo. Several answers can be undone in a row.
+  Future<void> _undo() async {
+    if (_answering || _undoStack.isEmpty) return;
+    HapticFeedback.selectionClick();
+    setState(() => _answering = true);
+    final entry = _undoStack.removeLast();
+    try {
+      await _study.undo(entry);
+      final fresh = await _fetchQueue();
+      // The restored card comes back first, wherever its old state would
+      // otherwise have placed it in the queue.
+      final i = fresh.indexWhere((c) => c.id == entry.cardId);
+      if (i > 0) fresh.insert(0, fresh.removeAt(i));
+      if (!mounted) return;
+      _showCard(fresh, answered: max(0, _answered - 1));
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(content: Text('Ответ отменён'), duration: Duration(seconds: 1)));
+      if (_queue.isNotEmpty) await _renderCurrent();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _answering = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Не удалось отменить: $e')));
+    }
+  }
+
+  void _showCard(List<CardEntry> queue, {required int answered}) {
+    setState(() {
+      _queue = queue;
+      _answered = answered;
+      _showAnswer = false;
+      _rendered = null;
+      _resolvedQuestionHtml = null;
+      _resolvedAnswerHtml = null;
+      _previews = null;
+      _answering = false;
+    });
   }
 
   @override
@@ -224,6 +263,8 @@ class _StudyScreenState extends State<StudyScreen> {
         const SingleActivator(LogicalKeyboardKey.digit2): () => _answer(Rating.hard),
         const SingleActivator(LogicalKeyboardKey.digit3): () => _answer(Rating.good),
         const SingleActivator(LogicalKeyboardKey.digit4): () => _answer(Rating.easy),
+        const SingleActivator(LogicalKeyboardKey.keyZ, control: true): _undo,
+        const SingleActivator(LogicalKeyboardKey.keyZ, meta: true): _undo,
       },
       child: Focus(
         focusNode: _focusNode,
@@ -232,7 +273,12 @@ class _StudyScreenState extends State<StudyScreen> {
           body: SafeArea(
             child: Column(
               children: [
-                _TopBar(answered: _answered, remaining: _queue.length, loading: _loading),
+                _TopBar(
+                  answered: _answered,
+                  remaining: _queue.length,
+                  loading: _loading,
+                  onUndo: _undoStack.isEmpty || _answering ? null : _undo,
+                ),
                 Expanded(
                   child: _loading
                       ? const Center(child: CupertinoActivityIndicator())
@@ -370,34 +416,38 @@ class _StudyScreenState extends State<StudyScreen> {
     );
   }
 
-  String _intervalLabel(CardSchedState state) {
-    if (state.queue == CardQueue.learning || state.queue == CardQueue.relearning) {
-      // Learning/relearning due values are Unix timestamps in seconds. A
-      // malformed value from an old database or import must never be
-      // multiplied into an out-of-range Dart DateTime.
-      const maxEpochSeconds = 8640000000000;
-      if (state.due < 0 || state.due > maxEpochSeconds) return 'скоро';
-      final now = DateTime.now();
-      final dueAt = DateTime.fromMillisecondsSinceEpoch(state.due * 1000);
-      final minutes = dueAt.difference(now).inMinutes.clamp(1, 1 << 30);
-      if (minutes < 60) return '$minutes мин';
-      final hours = minutes / 60;
-      if (hours < 24) return '${hours.round()} ч';
-      return '${(hours / 24).round()} д';
+  /// The label above a button, chosen and rounded like Anki's
+  /// `answer_button_time`: seconds, minutes and days as whole numbers,
+  /// hours, months (a twelfth of a year) and years to one decimal.
+  String _intervalLabel(IntervalKind kind) {
+    final secs = switch (kind) {
+      InSecs(:final secs) => secs.toDouble(),
+      InDays(:final days) => days * 86400.0,
+    };
+    const minute = 60.0, hour = 3600.0, day = 86400.0, year = 365 * day, month = year / 12;
+    String oneDecimal(double v) {
+      final r = (v * 10).round() / 10;
+      return r == r.roundToDouble() ? r.toStringAsFixed(0) : r.toStringAsFixed(1).replaceAll('.', ',');
     }
-    final days = state.ivl;
-    if (days < 30) return '$days д';
-    if (days < 365) return '${(days / 30).round()} мес';
-    return '${(days / 365).toStringAsFixed(1)} г';
+
+    if (secs < minute) return '${secs.round()} с';
+    if (secs < hour) return '${(secs / minute).round()} мин';
+    if (secs < day) return '${oneDecimal(secs / hour)} ч';
+    if (secs < month) return '${(secs / day).round()} д';
+    if (secs < year) return '${oneDecimal(secs / month)} мес';
+    return '${oneDecimal(secs / year)} г';
   }
 }
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.answered, required this.remaining, required this.loading});
+  const _TopBar({required this.answered, required this.remaining, required this.loading, this.onUndo});
 
   final int answered;
   final int remaining;
   final bool loading;
+
+  /// Undoes the last answer; null (button greyed out) when there is none.
+  final VoidCallback? onUndo;
 
   @override
   Widget build(BuildContext context) {
@@ -405,7 +455,7 @@ class _TopBar extends StatelessWidget {
     final total = answered + remaining;
     final progress = total == 0 ? (loading ? 0.0 : 1.0) : answered / total;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(AppSpacing.xs, AppSpacing.xs, AppSpacing.md, 0),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.xs, AppSpacing.xs, AppSpacing.xs, 0),
       child: Row(
         children: [
           CupertinoButton(
@@ -438,6 +488,16 @@ class _TopBar extends StatelessWidget {
               style: TextStyle(fontSize: 13, color: colors.muted, fontFeatures: const [FontFeature.tabularFigures()]),
             ),
           ),
+          CupertinoButton(
+            padding: const EdgeInsets.all(AppSpacing.sm + 2),
+            onPressed: onUndo,
+            child: Icon(
+              CupertinoIcons.arrow_uturn_left,
+              size: 21,
+              color: onUndo == null ? colors.muted.withValues(alpha: 0.35) : context.accentForeground,
+              semanticLabel: 'Отменить ответ',
+            ),
+          ),
         ],
       ),
     );
@@ -467,33 +527,9 @@ class _CardFace extends StatelessWidget {
       ),
       child: Column(
         children: [
-          SizedBox(
-            height: 48,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: AppSpacing.sm),
-                  child: Text(deckName, style: TextStyle(fontSize: 12.5, color: colors.muted)),
-                ),
-                if (onPlaySound != null)
-                  Positioned(
-                    right: AppSpacing.xs,
-                    top: AppSpacing.xs,
-                    child: CupertinoButton(
-                      padding: const EdgeInsets.all(AppSpacing.sm),
-                      minimumSize: const Size(44, 44),
-                      onPressed: onPlaySound,
-                      child: Icon(
-                        CupertinoIcons.speaker_2_fill,
-                        size: 22,
-                        color: context.accentForeground,
-                        semanticLabel: 'Произношение',
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+          Padding(
+            padding: const EdgeInsets.only(top: AppSpacing.md),
+            child: Text(deckName, style: TextStyle(fontSize: 12.5, color: colors.muted)),
           ),
           Expanded(
             child: LayoutBuilder(
@@ -501,7 +537,31 @@ class _CardFace extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minHeight: max(0, constraints.maxHeight - AppSpacing.md * 2)),
-                  child: Center(child: HtmlView(html: html, css: css)),
+                  // As in the design mock-up: the speaker sits centred right
+                  // under the word, part of the card rather than a toolbar.
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        HtmlView(html: html, css: css),
+                        if (onPlaySound != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: AppSpacing.md),
+                            child: CupertinoButton(
+                              padding: const EdgeInsets.all(AppSpacing.sm + 2),
+                              minimumSize: const Size(48, 48),
+                              onPressed: onPlaySound,
+                              child: Icon(
+                                CupertinoIcons.speaker_2,
+                                size: 28,
+                                color: context.accentForeground,
+                                semanticLabel: 'Прослушать произношение',
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
             ),

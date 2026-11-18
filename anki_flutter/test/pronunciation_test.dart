@@ -96,6 +96,13 @@ void main() {
     });
   });
 
+  test('the contact link goes to Wikimedia only (Oxford blocks it with 403)', () {
+    String ua(String url) => PronunciationLookup.userAgentFor(Uri.parse(url));
+    expect(ua('https://en.wiktionary.org/w/api.php'), contains('github.com'));
+    expect(ua('https://upload.wikimedia.org/wikipedia/commons/x.mp3'), contains('github.com'));
+    expect(ua('https://www.oxfordlearnersdictionaries.com/search/english/?q=go'), isNot(contains('http')));
+  });
+
   test('search variants: as typed, lower-case, without infinitive "to"', () {
     expect(PronunciationLookup.searchVariants('To Adhere.'), ['To Adhere', 'to adhere', 'adhere']);
   });

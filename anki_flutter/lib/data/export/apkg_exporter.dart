@@ -262,11 +262,16 @@ class ApkgExporter {
           },
           'lapse': {
             'delays': _parseSteps(c.relearningStepsMin),
-            'leechAction': 0,
+            'leechAction': c.leechSuspends ? 0 : 1, // Anki: 0 = suspend, 1 = tag only
             'leechFails': c.leechThreshold,
-            'minInt': 1,
+            'minInt': c.minimumLapseInterval,
             'mult': c.newIntervalPct / 100,
           },
+          ..._fsrsParamsJson(c.fsrsParams),
+          'desiredRetention': c.desiredRetention,
+          'sm2Retention': c.historicalRetention,
+          'ignoreRevlogsBeforeDate': c.ignoreRevlogsBeforeDate,
+          'easyDaysPercentages': _parseFloats(c.easyDaysPercentages),
         },
     };
 
@@ -301,6 +306,22 @@ class ApkgExporter {
         '{}',
       ],
     );
+  }
+
+  List<double> _parseFloats(String csv) =>
+      csv.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).map(double.parse).toList();
+
+  /// Anki keeps one parameter list per FSRS version (schema11 keys
+  /// `fsrsWeights` for 4.5, `fsrsParams5`, `fsrsParams6`); the list goes
+  /// under the key matching its length.
+  Map<String, Object> _fsrsParamsJson(String csv) {
+    final params = _parseFloats(csv);
+    return switch (params.length) {
+      21 => {'fsrsParams6': params},
+      19 => {'fsrsParams5': params},
+      17 => {'fsrsWeights': params},
+      _ => const {},
+    };
   }
 
   List<num> _parseSteps(String csv) =>
@@ -350,7 +371,7 @@ class ApkgExporter {
   void _writeCards(sqlite.Database db, List<CardEntry> cards, Map<int, DeckConfig> configByDeck) {
     final stmt = db.prepare(
       'INSERT INTO cards (id, nid, did, ord, mod, usn, type, queue, due, ivl, factor, reps, lapses, left, odue, odid, flags, data) '
-      'VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, \'\')',
+      'VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?)',
     );
     try {
       for (final c in cards) {
@@ -370,6 +391,7 @@ class ApkgExporter {
           c.reps,
           c.lapses,
           left,
+          _cardData(c),
         ]);
       }
     } finally {
@@ -383,19 +405,32 @@ class ApkgExporter {
   /// both), so a suspended card's prior type is inferred from whether it
   /// has ever graduated (ivl > 0).
   (int, int) _ankiTypeAndQueue(CardEntry c) {
-    switch (c.queue) {
-      case CardQueue.newCard:
-        return (0, 0);
-      case CardQueue.learning:
-        return (1, 1);
-      case CardQueue.review:
-        return (2, 2);
-      case CardQueue.relearning:
-        return (3, 3);
-      case CardQueue.suspended:
-        return (c.ivl > 0 ? 2 : 0, -1);
-    }
+    // Anki: type 0 new, 1 learning, 2 review, 3 relearning; queue 1 is
+    // intraday (re)learning, 3 is interday (re)learning, -1 suspended.
+    return switch (c.queue) {
+      CardQueue.newCard => (0, 0),
+      CardQueue.learning => (1, 1),
+      CardQueue.review => (2, 2),
+      CardQueue.relearning => (3, 1),
+      CardQueue.interdayLearning => (1, 3),
+      CardQueue.interdayRelearning => (3, 3),
+      CardQueue.suspended => (c.ivl > 0 ? 2 : 0, -1),
+    };
   }
+
+  /// Anki's `cards.data`: the FSRS memory state and last review time.
+  String _cardData(CardEntry c) {
+    final data = <String, Object>{
+      if (c.fsrsStability != null) 's': _round(c.fsrsStability!, 3),
+      if (c.fsrsDifficulty != null) 'd': _round(c.fsrsDifficulty!, 3),
+      if (c.fsrsDesiredRetention != null) 'dr': _round(c.fsrsDesiredRetention!, 2),
+      if (c.fsrsDecay != null) 'decay': _round(c.fsrsDecay!, 3),
+      if (c.lastReviewedAt != null) 'lrt': c.lastReviewedAt!,
+    };
+    return data.isEmpty ? '' : jsonEncode(data);
+  }
+
+  static double _round(double v, int places) => double.parse(v.toStringAsFixed(places));
 
   /// Anki packs `left` as `stepsRemainingToday + stepsRemainingTotal * 1000`
   /// - we don't model same-day-vs-later bury separately, so both halves use
@@ -405,20 +440,25 @@ class ApkgExporter {
   /// for any deck with more than one learning step or a card partway
   /// through them.
   int _remainingStepsLeft(CardEntry c, DeckConfig? config) {
-    if (c.queue != CardQueue.learning && c.queue != CardQueue.relearning) return 0;
+    const learning = {CardQueue.learning, CardQueue.interdayLearning};
+    const relearning = {CardQueue.relearning, CardQueue.interdayRelearning};
+    if (!learning.contains(c.queue) && !relearning.contains(c.queue)) return 0;
     if (config == null) return 1001;
-    final steps = _parseSteps(c.queue == CardQueue.relearning ? config.relearningStepsMin : config.learningStepsMin);
+    final steps = _parseSteps(relearning.contains(c.queue) ? config.relearningStepsMin : config.learningStepsMin);
     final remaining = max(1, steps.length - c.stepIndex);
     return remaining + remaining * 1000;
   }
 
   void _writeRevlog(sqlite.Database db, List<RevLogData> revlog) {
     final stmt = db.prepare(
-      'INSERT INTO revlog (id, cid, usn, ease, ivl, lastIvl, factor, time, type) VALUES (?, ?, 0, ?, ?, ?, ?, ?, 1)',
+      'INSERT INTO revlog (id, cid, usn, ease, ivl, lastIvl, factor, time, type) VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?)',
     );
     try {
       for (final r in revlog) {
-        stmt.execute([r.id, r.cardId, r.rating, r.ivlAfter, r.ivlBefore, r.easeAfter, r.timeTakenMs]);
+        // Anki's revlog id is the answer time in epoch ms; rows imported
+        // from Anki already use it as their id.
+        final id = r.id > 1000000000000 ? r.id : r.reviewedAt * 1000 + (r.id % 1000);
+        stmt.execute([id, r.cardId, r.rating, r.ivlAfter, r.ivlBefore, r.easeAfter, r.timeTakenMs, r.kind]);
       }
     } finally {
       stmt.close();

@@ -224,6 +224,16 @@ class ApkgImporter {
               hardIntervalPct: Value(((cfg.getFloat32(13) ?? 1.2) * 100).round()),
               newIntervalPct: Value(((cfg.getFloat32(14) ?? 0.0) * 100).round()),
               leechThreshold: Value(cfg.getInt(22) ?? 8),
+              // DeckConfig.Config.leech_action (field 21): 0 = suspend, 1 = tag only.
+              leechSuspends: Value((cfg.getInt(21) ?? 0) == 0),
+              minimumLapseInterval: Value(_orDefault(cfg.getInt(17), 1)),
+              // fsrs_params_6 / _5 / _4: Anki uses the newest non-empty set.
+              fsrsParams: Value(_floatsCsv([cfg.getPackedFloats(6), cfg.getPackedFloats(5), cfg.getPackedFloats(3)]
+                  .firstWhere((l) => l.isNotEmpty, orElse: () => const []))),
+              desiredRetention: Value(_retention(cfg.getFloat32(37))),
+              historicalRetention: Value(_retention(cfg.getFloat32(40))),
+              ignoreRevlogsBeforeDate: Value(cfg.getString(46)),
+              easyDaysPercentages: Value(_floatsCsv(cfg.getPackedFloats(4))),
               maximumIntervalDays: Value(cfg.getInt(16) ?? 36500),
               newPerDay: Value(cfg.getInt(9) ?? 20),
               reviewsPerDay: Value(cfg.getInt(10) ?? 200),
@@ -255,6 +265,17 @@ class ApkgImporter {
               hardIntervalPct: Value((((revBlock['hardFactor'] as num?) ?? 1.2) * 100).round()),
               newIntervalPct: Value((((lapseBlock['mult'] as num?) ?? 0.0) * 100).round()),
               leechThreshold: Value(((lapseBlock['leechFails'] as num?) ?? 8).round()),
+              // Legacy leechAction: 0 = suspend, 1 = tag only (Anki's default).
+              leechSuspends: Value(((lapseBlock['leechAction'] as num?) ?? 1) == 0),
+              minimumLapseInterval: Value(_orDefault((lapseBlock['minInt'] as num?)?.toInt(), 1)),
+              fsrsParams: Value(_floatsCsv([def['fsrsParams6'], def['fsrsParams5'], def['fsrsWeights']]
+                  .map((l) => [for (final v in (l as List?) ?? const []) (v as num).toDouble()])
+                  .firstWhere((l) => l.isNotEmpty, orElse: () => const []))),
+              desiredRetention: Value(_retention((def['desiredRetention'] as num?)?.toDouble())),
+              historicalRetention: Value(_retention((def['sm2Retention'] as num?)?.toDouble())),
+              ignoreRevlogsBeforeDate: Value((def['ignoreRevlogsBeforeDate'] as String?) ?? ''),
+              easyDaysPercentages: Value(_floatsCsv(
+                  [for (final v in (def['easyDaysPercentages'] as List?) ?? const []) (v as num).toDouble()])),
               maximumIntervalDays: Value(((revBlock['maxIvl'] as num?) ?? 36500).round()),
               newPerDay: Value(((newBlock['perDay'] as num?) ?? 20).round()),
               reviewsPerDay: Value(((revBlock['perDay'] as num?) ?? 200).round()),
@@ -439,8 +460,11 @@ class ApkgImporter {
       noteCount++;
     }
 
+    // Each deck's preset, for reading cards' learning-step positions.
+    final deckConfigByDeck = {for (final d in await _db.select(_db.decks).get()) d.id: d.deckConfigId};
+
     final cardRows = src.select(
-      'SELECT id, nid, did, ord, type, queue, due, ivl, factor, reps, lapses FROM cards',
+      'SELECT id, nid, did, ord, type, queue, due, ivl, factor, reps, lapses, left, data FROM cards',
     );
     var cardCount = 0;
     for (final row in cardRows) {
@@ -449,7 +473,7 @@ class ApkgImporter {
       if (deckId == null) continue; // card belongs to a filtered deck we skipped: out of scope
 
       final queueInt = row['queue'] as int;
-      final queue = _mapQueue(queueInt);
+      final queue = _mapQueue(row['type'] as int, queueInt);
       final ivl = row['ivl'] as int;
       var ease = row['factor'] as int;
       if (ease == 0) ease = 2500;
@@ -466,10 +490,30 @@ class ApkgImporter {
         case CardQueue.relearning:
           due = resolveLearningDue(row['due'] as int);
           break;
+        case CardQueue.interdayLearning:
+        case CardQueue.interdayRelearning:
+          due = reprojectDay(row['due'] as int);
+          break;
         case CardQueue.newCard:
           due = 0;
           break;
       }
+
+      // Anki's `left`: steps remaining (mod 1000). We store the position.
+      final remaining = (row['left'] as int? ?? 0) % 1000;
+      final configRow = await (_db.select(_db.deckConfigs)
+            ..where((c) => c.id.equals(deckConfigByDeck[deckId] ?? -1)))
+          .getSingleOrNull();
+      var stepIndex = 0;
+      if (configRow != null && remaining > 0) {
+        final relearn = queue == CardQueue.relearning || queue == CardQueue.interdayRelearning;
+        final steps = (relearn ? configRow.relearningStepsMin : configRow.learningStepsMin)
+            .split(',')
+            .where((x) => x.trim().isNotEmpty)
+            .length;
+        stepIndex = (steps - remaining).clamp(0, steps);
+      }
+      final data = _cardData(row['data'] as String?);
 
       await _db.into(_db.cards).insertOnConflictUpdate(CardsCompanion(
             id: Value(row['id'] as int),
@@ -482,13 +526,18 @@ class ApkgImporter {
             ease: Value(ease),
             reps: Value(row['reps'] as int),
             lapses: Value(row['lapses'] as int),
-            stepIndex: const Value(0), // mid-step position not reconstructed on import
+            stepIndex: Value(stepIndex),
+            fsrsStability: Value(data.s),
+            fsrsDifficulty: Value(data.d),
+            fsrsDesiredRetention: Value(data.dr),
+            fsrsDecay: Value(data.decay),
+            lastReviewedAt: Value(data.lrt),
           ));
       cardCount++;
     }
 
     final revRows = src.select(
-      'SELECT id, cid, ease, ivl, lastIvl, factor, time FROM revlog WHERE ease != 0',
+      'SELECT id, cid, ease, ivl, lastIvl, factor, time, type FROM revlog',
     );
     for (final row in revRows) {
       final factor = row['factor'] as int;
@@ -505,10 +554,11 @@ class ApkgImporter {
             cardId: Value(row['cid'] as int),
             reviewedAt: Value((row['id'] as int) ~/ 1000),
             rating: Value(row['ease'] as int),
-            ivlBefore: Value(lastIvl < 0 ? 0 : lastIvl),
-            ivlAfter: Value(ivl < 0 ? 0 : ivl),
-            easeAfter: Value(factor == 0 ? 2500 : factor),
+            ivlBefore: Value(lastIvl),
+            ivlAfter: Value(ivl),
+            easeAfter: Value(factor),
             timeTakenMs: Value(row['time'] as int),
+            kind: Value(row['type'] as int),
           ));
     }
 
@@ -573,20 +623,51 @@ class ApkgImporter {
     return count;
   }
 
-  CardQueue _mapQueue(int queueInt) {
+  /// Anki's card type (0 new, 1 learning, 2 review, 3 relearning) and
+  /// queue (0 new, 1 intraday (re)learning, 2 review, 3 interday
+  /// (re)learning, -1 suspended, -2/-3 buried, 4 preview). Buried and
+  /// preview cards are restored to their type's normal queue.
+  static int _orDefault(int? v, int fallback) => v == null || v == 0 ? fallback : v;
+
+  /// Anki treats an unset (0) retention as its default, 0.9.
+  static double _retention(double? v) => v == null || v <= 0 ? 0.9 : v;
+
+  static String _floatsCsv(List<double> values) => values.map((v) => v.toString()).join(',');
+
+  /// Anki's `cards.data` JSON: FSRS memory state (`s`, `d`), desired
+  /// retention (`dr`), decay and last review time (`lrt`).
+  static ({double? s, double? d, double? dr, double? decay, int? lrt}) _cardData(String? raw) {
+    if (raw == null || raw.trim().isEmpty) return (s: null, d: null, dr: null, decay: null, lrt: null);
+    try {
+      final j = jsonDecode(raw);
+      if (j is! Map) return (s: null, d: null, dr: null, decay: null, lrt: null);
+      double? f(String k) => (j[k] as num?)?.toDouble();
+      return (s: f('s'), d: f('d'), dr: f('dr'), decay: f('decay'), lrt: (j['lrt'] as num?)?.toInt());
+    } catch (_) {
+      return (s: null, d: null, dr: null, decay: null, lrt: null);
+    }
+  }
+
+  CardQueue _mapQueue(int type, int queueInt) {
+    final relearn = type == 3;
     switch (queueInt) {
       case -1:
         return CardQueue.suspended;
       case 0:
         return CardQueue.newCard;
       case 1:
-        return CardQueue.learning;
+        return relearn ? CardQueue.relearning : CardQueue.learning;
       case 2:
         return CardQueue.review;
       case 3:
-        return CardQueue.relearning;
+        return relearn ? CardQueue.interdayRelearning : CardQueue.interdayLearning;
       default:
-        return CardQueue.suspended; // buried (-2/-3) or preview (4): park it, safest default
+        return switch (type) {
+          0 => CardQueue.newCard,
+          1 => CardQueue.learning,
+          3 => CardQueue.relearning,
+          _ => CardQueue.review,
+        };
     }
   }
 }

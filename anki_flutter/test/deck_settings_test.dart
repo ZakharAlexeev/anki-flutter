@@ -1,5 +1,6 @@
 import 'package:anki_flutter/data/db/database.dart';
 import 'package:anki_flutter/data/repositories/deck_repository.dart';
+import 'package:anki_flutter/data/repositories/study_repository.dart';
 import 'package:anki_flutter/ui/decks/deck_settings_screen.dart';
 import 'package:anki_flutter/ui/theme/app_theme.dart';
 import 'package:drift/native.dart';
@@ -30,6 +31,7 @@ void main() {
       providers: [
         Provider<AppDatabase>.value(value: db),
         Provider<DeckRepository>.value(value: decks),
+        Provider<StudyRepository>.value(value: StudyRepository(db)),
       ],
       child: MaterialApp(theme: AppTheme.light(), home: child),
     );

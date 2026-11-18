@@ -4,6 +4,9 @@ import 'package:provider/provider.dart';
 
 import '../../data/db/database.dart';
 import '../../data/repositories/deck_repository.dart';
+import '../../data/repositories/sched_config_mapper.dart';
+import '../../data/repositories/study_repository.dart';
+import '../../domain/scheduler/fsrs.dart';
 import '../theme/app_theme.dart';
 
 /// Exposes the deck's [DeckConfig] (learning/relearning steps, graduating
@@ -24,6 +27,7 @@ class DeckSettingsScreen extends StatefulWidget {
 class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
   DeckConfig? _config;
   bool _saving = false;
+  bool _leechSuspends = false;
 
   final _learningSteps = TextEditingController();
   final _relearningSteps = TextEditingController();
@@ -39,6 +43,12 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
   final _minEase = TextEditingController();
   final _newPerDay = TextEditingController();
   final _reviewsPerDay = TextEditingController();
+  final _minimumLapseInterval = TextEditingController();
+  final _desiredRetention = TextEditingController();
+  final _historicalRetention = TextEditingController();
+  final _fsrsParams = TextEditingController();
+  final _ignoreBefore = TextEditingController();
+  bool _fsrsEnabled = false;
 
   @override
   void initState() {
@@ -63,6 +73,11 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
       _minEase,
       _newPerDay,
       _reviewsPerDay,
+      _minimumLapseInterval,
+      _desiredRetention,
+      _historicalRetention,
+      _fsrsParams,
+      _ignoreBefore,
     ]) {
       c.dispose();
     }
@@ -71,6 +86,8 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
 
   Future<void> _load() async {
     final config = await context.read<DeckRepository>().configForDeck(widget.deckId);
+    if (!mounted) return;
+    final options = await context.read<StudyRepository>().schedulingOptions();
     if (!mounted) return;
     setState(() {
       _config = config;
@@ -84,14 +101,48 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
       _hardIntervalPct.text = '${config.hardIntervalPct}';
       _newIntervalPct.text = '${config.newIntervalPct}';
       _leechThreshold.text = '${config.leechThreshold}';
+      _leechSuspends = config.leechSuspends;
       _maximumIntervalDays.text = '${config.maximumIntervalDays}';
       _minEase.text = '${config.minEase / 10}';
       _newPerDay.text = '${config.newPerDay}';
       _reviewsPerDay.text = '${config.reviewsPerDay}';
+      _minimumLapseInterval.text = '${config.minimumLapseInterval}';
+      _desiredRetention.text = _percent(config.desiredRetention);
+      _historicalRetention.text = _percent(config.historicalRetention);
+      _fsrsParams.text = config.fsrsParams.replaceAll(',', ', ');
+      _ignoreBefore.text = config.ignoreRevlogsBeforeDate;
+      _fsrsEnabled = options.fsrsEnabled;
     });
   }
 
   int? _int(TextEditingController c) => int.tryParse(c.text.trim());
+
+  static String _percent(double v) {
+    final pct = (v * 100 * 10).round() / 10;
+    return pct == pct.roundToDouble() ? pct.toStringAsFixed(0) : pct.toString();
+  }
+
+  /// A retention typed as a percentage (e.g. "90") -> 0.90.
+  double? _retention(TextEditingController c) {
+    final v = double.tryParse(c.text.trim().replaceAll(',', '.'));
+    if (v == null) return null;
+    final r = v / 100;
+    return r >= 0.7 && r <= 0.99 ? r : null;
+  }
+
+  /// FSRS parameters as Anki shows them: 17, 19 or 21 numbers, or empty
+  /// for the defaults. Returns null when they aren't a valid set.
+  String? _validParams() {
+    final text = _fsrsParams.text.trim();
+    if (text.isEmpty) return '';
+    try {
+      final values = parseFloats(text);
+      Fsrs(values); // throws on a wrong count or non-finite values
+      return values.join(',');
+    } on FormatException {
+      return null;
+    }
+  }
   int? _percentAsEase(TextEditingController c) {
     final pct = double.tryParse(c.text.trim());
     return pct == null ? null : (pct * 10).round();
@@ -140,7 +191,30 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
       newPerDay,
       reviewsPerDay,
     ];
-    if (numbers.any((n) => n == null || n < 0)) {
+    final minimumLapseInterval = _int(_minimumLapseInterval);
+    final desiredRetention = _retention(_desiredRetention);
+    final historicalRetention = _retention(_historicalRetention);
+    final fsrsParams = _validParams();
+    final ignoreBefore = _ignoreBefore.text.trim();
+    if (desiredRetention == null || historicalRetention == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Запоминаемость — число от 70 до 99 процентов')),
+      );
+      return;
+    }
+    if (fsrsParams == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Параметры FSRS: 17, 19 или 21 число через запятую, как в Anki')),
+      );
+      return;
+    }
+    if (ignoreBefore.isNotEmpty && ignoreRevlogsBeforeMs(ignoreBefore) == 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Дата должна быть в формате ГГГГ-ММ-ДД')),
+      );
+      return;
+    }
+    if (numbers.any((n) => n == null || n < 0) || minimumLapseInterval == null || minimumLapseInterval < 1) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Все числовые поля должны быть заполнены неотрицательными числами')),
       );
@@ -161,11 +235,25 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
             hardIntervalPct: Value(hardIntervalPct!),
             newIntervalPct: Value(newIntervalPct!),
             leechThreshold: Value(leechThreshold!),
+            leechSuspends: Value(_leechSuspends),
             maximumIntervalDays: Value(maximumIntervalDays!),
             minEase: Value(minEase!),
             newPerDay: Value(newPerDay!),
             reviewsPerDay: Value(reviewsPerDay!),
+            minimumLapseInterval: Value(minimumLapseInterval),
+            desiredRetention: Value(desiredRetention),
+            historicalRetention: Value(historicalRetention),
+            fsrsParams: Value(fsrsParams),
+            ignoreRevlogsBeforeDate: Value(ignoreBefore),
           ));
+      // New parameters change every card's memory state; Anki recomputes
+      // them on save, and so do we.
+      final memoryInputsChanged = fsrsParams != config.fsrsParams ||
+          historicalRetention != config.historicalRetention ||
+          ignoreBefore != config.ignoreRevlogsBeforeDate;
+      if (_fsrsEnabled && memoryInputsChanged && mounted) {
+        await context.read<StudyRepository>().recomputeMemoryStates(deckConfigId: config.id);
+      }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Настройки сохранены')));
       Navigator.of(context).pop();
@@ -210,10 +298,54 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
                     _numRow(_intervalModifierPct, 'Множитель интервала (%)'),
                     _numRow(_hardIntervalPct, 'Множитель "Трудно" (%)'),
                     _numRow(_newIntervalPct, 'Множитель после провала (%)'),
+                    _numRow(_minimumLapseInterval, 'Минимальный интервал после провала (дни)'),
+                    _section('FSRS'),
+                    Text(
+                      _fsrsEnabled
+                          ? 'FSRS включён для всей коллекции (вкладка «Ещё»). Коэффициент лёгкости и '
+                              'множители выше при этом не используются.'
+                          : 'Сейчас используется SM-2. Включить FSRS можно во вкладке «Ещё».',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    _numRow(_desiredRetention, 'Желаемая запоминаемость (%)'),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: TextField(
+                        controller: _fsrsParams,
+                        minLines: 2,
+                        maxLines: 5,
+                        keyboardType: TextInputType.multiline,
+                        decoration: const InputDecoration(
+                          labelText: 'Параметры FSRS',
+                          hintText: 'Пусто — параметры по умолчанию. Можно вставить из Anki на компьютере.',
+                        ),
+                      ),
+                    ),
+                    _numRow(_historicalRetention, 'Запоминаемость до FSRS (%)'),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
+                      child: TextField(
+                        controller: _ignoreBefore,
+                        decoration: const InputDecoration(
+                          labelText: 'Не учитывать ответы до даты',
+                          hintText: 'ГГГГ-ММ-ДД, можно оставить пустым',
+                        ),
+                      ),
+                    ),
                     _section('Лимиты и leech'),
                     _numRow(_newPerDay, 'Новых карточек в день'),
                     _numRow(_reviewsPerDay, 'Повторений в день'),
                     _numRow(_leechThreshold, 'Порог leech (число ошибок)'),
+                    SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      value: _leechSuspends,
+                      onChanged: (v) => setState(() => _leechSuspends = v),
+                      title: const Text('Откладывать трудные карточки'),
+                      subtitle: const Text(
+                        'Выключено, как в Anki: карточка только получает метку leech и остаётся в повторениях.',
+                      ),
+                    ),
                     const SizedBox(height: AppSpacing.lg),
                     SizedBox(
                       height: 48,

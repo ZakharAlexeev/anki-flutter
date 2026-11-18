@@ -1,3 +1,5 @@
+import 'package:drift/drift.dart';
+
 import '../../domain/scheduler/day_calendar.dart';
 import '../db/database.dart';
 
@@ -106,7 +108,8 @@ class StatsRepository {
     final cards = await cardsQuery.get();
     final cardIds = cards.map((c) => c.id).toSet();
 
-    final revlogQuery = _db.select(_db.revLog);
+    // Only real answers: Anki's manual/reset entries (rating 0) aren't reviews.
+    final revlogQuery = _db.select(_db.revLog)..where((r) => r.rating.isBiggerThanValue(0));
     final allRevlog = await revlogQuery.get();
     final revlog = deckId == null ? allRevlog : allRevlog.where((r) => cardIds.contains(r.cardId)).toList();
 
@@ -128,7 +131,7 @@ class StatsRepository {
     final meta = await _db.select(_db.collectionMeta).getSingle();
     final createdAt = DateTime.fromMillisecondsSinceEpoch(meta.createdAt);
     final today = dayNumber(n, createdAt, rolloverHour: meta.rolloverHour);
-    final revlog = await _db.select(_db.revLog).get();
+    final revlog = await (_db.select(_db.revLog)..where((r) => r.rating.isBiggerThanValue(0))).get();
 
     final studiedDays = <int>{
       for (final r in revlog)
@@ -195,6 +198,8 @@ class StatsRepository {
           break;
         case CardQueue.learning:
         case CardQueue.relearning:
+        case CardQueue.interdayLearning:
+        case CardQueue.interdayRelearning:
           learning++;
           break;
         case CardQueue.review:
