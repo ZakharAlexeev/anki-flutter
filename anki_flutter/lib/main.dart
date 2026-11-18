@@ -7,7 +7,7 @@ import 'data/repositories/note_repository.dart';
 import 'data/repositories/notetype_repository.dart';
 import 'data/repositories/stats_repository.dart';
 import 'data/repositories/study_repository.dart';
-import 'ui/decks/deck_list_screen.dart';
+import 'ui/home/home_shell.dart';
 import 'ui/theme/app_theme.dart';
 
 Future<void> main() async {
@@ -55,11 +55,12 @@ class AnkiFlutterApp extends StatelessWidget {
         Provider<StatsRepository>.value(value: stats),
       ],
       child: MaterialApp(
-        title: 'Anki Flutter',
+        title: 'Anki',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light(),
-        themeMode: ThemeMode.light,
-        home: const DeckListScreen(),
+        darkTheme: AppTheme.dark(),
+        themeMode: ThemeMode.system,
+        home: const HomeShell(),
       ),
     );
   }

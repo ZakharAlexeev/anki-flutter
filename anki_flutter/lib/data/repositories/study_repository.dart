@@ -107,6 +107,27 @@ class StudyRepository {
     return [...learning, ...review, ...newCards, ...learningAhead];
   }
 
+  /// The combined queue of every deck, for the home screen's single "start
+  /// studying" button. Each deck's own [dueQueue] still applies its per-day
+  /// limits; the results are then re-merged so that elapsed learning steps
+  /// come first and still-counting-down ones last across the whole
+  /// collection, not just within each deck.
+  Future<List<CardEntry>> dueQueueAll({DateTime? now}) async {
+    final n = now ?? DateTime.now();
+    final nowSec = n.millisecondsSinceEpoch ~/ 1000;
+    final decks = await (_db.select(_db.decks)..orderBy([(d) => OrderingTerm.asc(d.name)])).get();
+    final all = <CardEntry>[];
+    for (final deck in decks) {
+      all.addAll(await dueQueue(deck.id, now: n));
+    }
+    bool isLearning(CardEntry c) => c.queue == CardQueue.learning || c.queue == CardQueue.relearning;
+    final learning = all.where((c) => isLearning(c) && c.due <= nowSec).toList()..sort((a, b) => a.due.compareTo(b.due));
+    final ahead = all.where((c) => isLearning(c) && c.due > nowSec).toList()..sort((a, b) => a.due.compareTo(b.due));
+    final review = all.where((c) => c.queue == CardQueue.review).toList();
+    final newCards = all.where((c) => c.queue == CardQueue.newCard).toList();
+    return [...learning, ...review, ...newCards, ...ahead];
+  }
+
   Future<DueQueueCounts> counts(int deckId, {DateTime? now}) async {
     final cards = await dueQueue(deckId, now: now);
     return DueQueueCounts(

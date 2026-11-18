@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/repositories/stats_repository.dart';
+import '../common/ios.dart';
 import '../theme/app_theme.dart';
 
 /// Anki-style statistics: today's summary, due forecast, review history,
@@ -37,7 +38,7 @@ class _StatsScreenState extends State<StatsScreen> {
   Widget build(BuildContext context) {
     final stats = _stats;
     return Scaffold(
-      appBar: AppBar(title: Text('Статистика — ${widget.title}')),
+      appBar: AppBar(title: Text(widget.deckId == null ? 'Статистика' : widget.title)),
       body: stats == null
           ? const Center(child: CircularProgressIndicator())
           : Align(
@@ -45,44 +46,29 @@ class _StatsScreenState extends State<StatsScreen> {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 720),
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
+                  padding: const EdgeInsets.only(bottom: AppSpacing.xl),
                   children: [
-                    Text('ОБЗОР', style: Theme.of(context).textTheme.labelSmall),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text('Ритм обучения', style: Theme.of(context).textTheme.headlineSmall),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Короткая сводка и динамика повторений.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: context.appColors.muted),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
+                    const SectionHeader('Сегодня'),
                     _TodayRow(today: stats.today),
-                    const SizedBox(height: AppSpacing.lg),
+                    const SectionHeader('Прогноз на 30 дней'),
                     _ChartCard(
-                      title: 'Прогноз повторений (30 дней)',
+                      subtitle: 'Сколько карточек придёт на повторение',
+                      empty: stats.forecast.every((d) => d.count == 0),
                       child: _ForecastChart(data: stats.forecast),
                     ),
-                    const SizedBox(height: AppSpacing.lg),
+                    const SectionHeader('История за 30 дней'),
                     _ChartCard(
-                      title: 'История повторений (30 дней)',
+                      subtitle: 'Сколько карточек вы повторили',
+                      empty: stats.reviewHistory.every((d) => d.count == 0),
                       child: _HistoryChart(data: stats.reviewHistory),
                     ),
-                    const SizedBox(height: AppSpacing.lg),
-                    _ChartCard(
-                      title: 'Карточки по статусу',
-                      child: _CardCountsChart(counts: stats.cardCounts),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    _ChartCard(
-                      title: 'Интервалы повторения',
-                      child: _BucketChart(buckets: stats.intervalHistogram),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
-                    _ChartCard(
-                      title: 'Коэффициент лёгкости',
-                      child: _BucketChart(buckets: stats.easeHistogram),
-                    ),
-                    const SizedBox(height: AppSpacing.lg),
+                    const SectionHeader('Карточки по статусу'),
+                    _ChartCard(child: _CardCountsChart(counts: stats.cardCounts)),
+                    const SectionHeader('Интервалы повторения'),
+                    _ChartCard(child: _BucketChart(buckets: stats.intervalHistogram)),
+                    const SectionHeader('Коэффициент лёгкости'),
+                    _ChartCard(child: _BucketChart(buckets: stats.easeHistogram)),
+                    const SectionHeader('Всего'),
                     _SummaryRow(stats: stats),
                   ],
                 ),
@@ -92,29 +78,41 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 }
 
+/// A white block in the same inset style as the grouped lists elsewhere, so
+/// the section caption above it and its contents share one left edge.
 class _ChartCard extends StatelessWidget {
-  const _ChartCard({required this.title, required this.child});
+  const _ChartCard({this.subtitle, this.empty = false, required this.child});
 
-  final String title;
+  final String? subtitle;
+
+  /// No data yet: show a short note instead of a tall, blank chart.
+  final bool empty;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(kAppRadius),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(title, style: Theme.of(context).textTheme.titleSmall),
-          const SizedBox(height: AppSpacing.md),
-          SizedBox(height: 160, child: child),
-        ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.md, AppSpacing.md, AppSpacing.sm + 4),
+        decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(12)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (subtitle != null) ...[
+              Text(subtitle!, style: TextStyle(fontSize: 14, color: colors.muted)),
+              const SizedBox(height: AppSpacing.md),
+            ],
+            if (empty)
+              SizedBox(
+                height: 60,
+                child: Center(child: Text('Пока нет данных', style: TextStyle(fontSize: 14, color: colors.muted))),
+              )
+            else
+              SizedBox(height: 150, child: child),
+          ],
+        ),
       ),
     );
   }
@@ -127,11 +125,11 @@ class _TodayRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _ResponsiveStatRow(
+    return _StatRow(
       tiles: [
-        _StatTile(label: 'Повторено сегодня', value: '${today.reviewCount}'),
+        _StatTile(label: 'Повторено', value: '${today.reviewCount}'),
         _StatTile(label: 'Минут', value: '${today.minutesStudied}'),
-        _StatTile(label: 'Точность', value: '${today.accuracyPct.round()}%'),
+        _StatTile(label: 'Точность', value: today.reviewCount == 0 ? '—' : '${today.accuracyPct.round()}%'),
       ],
     );
   }
@@ -144,33 +142,34 @@ class _SummaryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _ResponsiveStatRow(
+    return _StatRow(
       tiles: [
         _StatTile(label: 'Заметок', value: '${stats.totalNotes}'),
-        _StatTile(label: 'Всего повторений', value: '${stats.totalReviews}'),
-        _StatTile(label: 'Изучено (зрелые)', value: '${stats.matureCount}'),
+        _StatTile(label: 'Повторений', value: '${stats.totalReviews}'),
+        _StatTile(label: 'Выучено', value: '${stats.matureCount}'),
       ],
     );
   }
 }
 
-class _ResponsiveStatRow extends StatelessWidget {
-  const _ResponsiveStatRow({required this.tiles});
+/// Three equal tiles side by side, inset like the rest of the screen.
+class _StatRow extends StatelessWidget {
+  const _StatRow({required this.tiles});
 
   final List<Widget> tiles;
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth < 520 ? 1 : 3;
-        final width = (constraints.maxWidth - AppSpacing.sm * (columns - 1)) / columns;
-        return Wrap(
-          spacing: AppSpacing.sm,
-          runSpacing: AppSpacing.sm,
-          children: [for (final tile in tiles) SizedBox(width: width, child: tile)],
-        );
-      },
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: Row(
+        children: [
+          for (var i = 0; i < tiles.length; i++) ...[
+            if (i > 0) const SizedBox(width: AppSpacing.sm),
+            Expanded(child: tiles[i]),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -185,22 +184,37 @@ class _StatTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.appColors;
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: AppSpacing.md, horizontal: AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(kAppRadius),
-        border: Border.all(color: colors.border),
-      ),
+      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm + 4, AppSpacing.sm, AppSpacing.sm + 4),
+      decoration: BoxDecoration(color: colors.surface, borderRadius: BorderRadius.circular(12)),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label.toUpperCase(), style: Theme.of(context).textTheme.labelSmall),
-          const SizedBox(height: AppSpacing.sm),
-          Text(value, style: Theme.of(context).textTheme.headlineSmall),
+          Text(
+            value,
+            maxLines: 1,
+            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, letterSpacing: -0.5, color: colors.text),
+          ),
+          const SizedBox(height: 2),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, color: colors.muted)),
         ],
       ),
     );
   }
+}
+
+/// X-axis label for the 30-day charts: one tick per week ("сегодня",
+/// "+7 д" / "−7 д"), kept inside the chart so edge labels don't clip.
+/// Labelling every day crammed 30 labels into one line on a phone.
+Widget _weekTick(double value, TitleMeta meta, Color color, {required bool future}) {
+  final day = value.round();
+  if (day % 7 != 0) return const SizedBox.shrink();
+  final text = day == 0 ? 'сегодня' : (future ? '+$day д' : '−${-day} д');
+  return SideTitleWidget(
+    meta: meta,
+    space: 6,
+    fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
+    child: Text(text, style: TextStyle(fontSize: 11, color: color)),
+  );
 }
 
 class _ForecastChart extends StatelessWidget {
@@ -225,12 +239,8 @@ class _ForecastChart extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 20,
-              interval: 5,
-              getTitlesWidget: (value, meta) => Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text('${value.round()}д', style: TextStyle(fontSize: 10, color: colors.muted)),
-              ),
+              reservedSize: 22,
+              getTitlesWidget: (value, meta) => _weekTick(value, meta, colors.muted, future: true),
             ),
           ),
         ),
@@ -243,7 +253,12 @@ class _ForecastChart extends StatelessWidget {
         barGroups: [
           for (final d in data)
             BarChartGroupData(x: d.dayOffset, barRods: [
-              BarChartRodData(toY: d.count.toDouble(), color: AppColors.accent, width: 5),
+              BarChartRodData(
+                toY: d.count.toDouble(),
+                color: AppColors.accent,
+                width: 5,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ]),
         ],
       ),
@@ -273,12 +288,8 @@ class _HistoryChart extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
-              reservedSize: 20,
-              interval: 5,
-              getTitlesWidget: (value, meta) => Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: Text('${value.round()}д', style: TextStyle(fontSize: 10, color: colors.muted)),
-              ),
+              reservedSize: 22,
+              getTitlesWidget: (value, meta) => _weekTick(value, meta, colors.muted, future: false),
             ),
           ),
         ),
@@ -291,7 +302,12 @@ class _HistoryChart extends StatelessWidget {
         barGroups: [
           for (final d in data)
             BarChartGroupData(x: d.dayOffset, barRods: [
-              BarChartRodData(toY: d.count.toDouble(), color: AppColors.good, width: 5),
+              BarChartRodData(
+                toY: d.count.toDouble(),
+                color: AppColors.good,
+                width: 5,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ]),
         ],
       ),

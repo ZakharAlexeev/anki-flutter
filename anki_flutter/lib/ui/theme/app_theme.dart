@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 
 /// A quiet, editorial palette for a tool that is used for long study sessions.
@@ -11,6 +12,7 @@ class AppColors {
   static const accent = Color(0xFF256653);
   static const accentStrong = Color(0xFF174A3C);
   static const accentSoft = Color(0xFFE2EEE8);
+  static const accentOnDark = Color(0xFF6FC2A2);
 
   static const again = Color(0xFFB84B4A);
   static const hard = Color(0xFFA66B24);
@@ -113,8 +115,18 @@ class AppTheme {
       canvasColor: bg,
       textTheme: textTheme,
       visualDensity: VisualDensity.standard,
-      splashFactory: InkRipple.splashFactory,
-      highlightColor: Colors.transparent,
+      // iOS has no ripple: a press is shown as a soft grey highlight.
+      splashFactory: NoSplash.splashFactory,
+      highlightColor: text.withValues(alpha: isDark ? 0.08 : 0.06),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.windows: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.linux: CupertinoPageTransitionsBuilder(),
+        },
+      ),
       hoverColor: AppColors.accent.withValues(alpha: 0.045),
       focusColor: AppColors.accent.withValues(alpha: 0.08),
       dividerTheme: DividerThemeData(color: border, thickness: 1, space: 1),
@@ -124,12 +136,11 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         foregroundColor: text,
-        centerTitle: false,
-        toolbarHeight: 68,
-        titleSpacing: AppSpacing.lg,
-        titleTextStyle: textTheme.titleLarge,
-        iconTheme: IconThemeData(color: muted, size: 21),
-        actionsIconTheme: IconThemeData(color: muted, size: 21),
+        centerTitle: true,
+        toolbarHeight: 52,
+        titleTextStyle: TextStyle(fontSize: 17, fontWeight: FontWeight.w600, letterSpacing: -0.2, color: text),
+        iconTheme: IconThemeData(color: isDark ? AppColors.accentOnDark : AppColors.accent, size: 22),
+        actionsIconTheme: IconThemeData(color: isDark ? AppColors.accentOnDark : AppColors.accent, size: 22),
       ),
       cardTheme: CardThemeData(
         color: surface,
@@ -309,4 +320,9 @@ class AppSemanticColors extends ThemeExtension<AppSemanticColors> {
 
 extension AppThemeContext on BuildContext {
   AppSemanticColors get appColors => Theme.of(this).extension<AppSemanticColors>()!;
+
+  /// Accent for text and icons on the page background: the brand green is
+  /// too dark to read on the dark theme's near-black, so it is lifted there.
+  Color get accentForeground =>
+      Theme.of(this).brightness == Brightness.dark ? AppColors.accentOnDark : AppColors.accent;
 }

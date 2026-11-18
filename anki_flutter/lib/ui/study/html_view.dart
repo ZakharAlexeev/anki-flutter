@@ -31,7 +31,10 @@ class HtmlView extends StatelessWidget {
       data: withCss,
       style: {
         'body': Style(
-          fontSize: FontSize(19),
+          // A serif face makes the word read like a dictionary entry;
+          // Georgia ships with both iOS and Windows.
+          fontFamily: 'Georgia',
+          fontSize: FontSize(22),
           fontWeight: FontWeight.w400,
           lineHeight: const LineHeight(1.5),
           color: textColor,

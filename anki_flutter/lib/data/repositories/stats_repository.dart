@@ -62,6 +62,24 @@ class DeckStats {
   });
 }
 
+/// Day-by-day study habit, for the home screen.
+class StudyHabit {
+  /// Consecutive days with at least one review, counting back from today
+  /// (or from yesterday, if nothing has been studied yet today).
+  final int streakDays;
+
+  /// Whether anything was studied on each of the last 7 days, oldest first;
+  /// the last entry is today.
+  final List<bool> lastWeek;
+
+  /// Typical time spent per card, used to estimate a session's length.
+  final int secondsPerCard;
+
+  const StudyHabit({required this.streakDays, required this.lastWeek, required this.secondsPerCard});
+
+  int estimateMinutes(int cards) => cards == 0 ? 0 : ((cards * secondsPerCard) / 60).ceil();
+}
+
 /// Computes Anki-style review statistics (today's summary, due forecast,
 /// review history, card/interval/ease distributions) for one deck or the
 /// whole collection. Card/revlog volumes in a personal collection are small
@@ -102,6 +120,37 @@ class StatsRepository {
       totalNotes: cards.map((c) => c.noteId).toSet().length,
       totalReviews: revlog.length,
       matureCount: cards.where((c) => c.queue == CardQueue.review && c.ivl >= _matureThresholdDays).length,
+    );
+  }
+
+  Future<StudyHabit> habit({DateTime? now}) async {
+    final n = now ?? DateTime.now();
+    final meta = await _db.select(_db.collectionMeta).getSingle();
+    final createdAt = DateTime.fromMillisecondsSinceEpoch(meta.createdAt);
+    final today = dayNumber(n, createdAt, rolloverHour: meta.rolloverHour);
+    final revlog = await _db.select(_db.revLog).get();
+
+    final studiedDays = <int>{
+      for (final r in revlog)
+        dayNumber(DateTime.fromMillisecondsSinceEpoch(r.reviewedAt * 1000), createdAt, rolloverHour: meta.rolloverHour),
+    };
+    var day = studiedDays.contains(today) ? today : today - 1;
+    var streak = 0;
+    while (studiedDays.contains(day)) {
+      streak++;
+      day--;
+    }
+
+    // Median rather than mean, so one card left open while making tea
+    // doesn't inflate every future estimate.
+    final times = revlog.where((r) => r.timeTakenMs > 0).map((r) => r.timeTakenMs).toList();
+    final recent = (times.length > 500 ? times.sublist(times.length - 500) : times)..sort();
+    final secondsPerCard = recent.isEmpty ? 8 : (recent[recent.length ~/ 2] / 1000).round().clamp(3, 60);
+
+    return StudyHabit(
+      streakDays: streak,
+      lastWeek: [for (var d = today - 6; d <= today; d++) studiedDays.contains(d)],
+      secondsPerCard: secondsPerCard,
     );
   }
 

@@ -1,449 +1,420 @@
+import 'dart:async';
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../data/db/database.dart';
 import '../../data/repositories/deck_repository.dart';
+import '../../data/repositories/stats_repository.dart';
 import '../../data/repositories/study_repository.dart';
-import '../browser/card_browser_screen.dart';
+import '../common/ios.dart';
 import '../editor/note_editor_screen.dart';
-import '../export/export_progress_dialog.dart';
-import '../import/import_screen.dart';
-import '../stats/stats_screen.dart';
 import '../study/study_screen.dart';
 import '../theme/app_theme.dart';
-import 'deck_settings_screen.dart';
+import 'deck_actions.dart';
 
-class DeckListScreen extends StatelessWidget {
-  const DeckListScreen({super.key});
+/// Home tab, "Сегодня": a summary of today's work with one button that
+/// studies every deck, then the decks themselves as an inset grouped list.
+class DeckListScreen extends StatefulWidget {
+  const DeckListScreen({super.key, this.refreshToken = 0});
+
+  /// Bumped by the tab bar each time this tab is re-opened, so counts that
+  /// changed elsewhere (a card added from another tab) are reloaded.
+  final int refreshToken;
+
+  @override
+  State<DeckListScreen> createState() => _DeckListScreenState();
+}
+
+class _DeckListScreenState extends State<DeckListScreen> {
+  StreamSubscription<List<Deck>>? _sub;
+  List<Deck>? _decks;
+  Map<int, DueQueueCounts> _counts = const {};
+  StudyHabit? _habit;
+  int _loadGeneration = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = context.read<DeckRepository>().watchDecks().listen((decks) {
+      _decks = decks;
+      _reload();
+    });
+  }
+
+  @override
+  void didUpdateWidget(DeckListScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshToken != widget.refreshToken) _reload();
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _reload() async {
+    final decks = _decks;
+    if (decks == null) return;
+    final generation = ++_loadGeneration;
+    final study = context.read<StudyRepository>();
+    final stats = context.read<StatsRepository>();
+    final counts = <int, DueQueueCounts>{};
+    for (final d in decks) {
+      counts[d.id] = await study.counts(d.id);
+    }
+    final habit = await stats.habit();
+    // A newer reload started while this one was running: drop the stale result.
+    if (!mounted || generation != _loadGeneration) return;
+    setState(() {
+      _counts = counts;
+      _habit = habit;
+    });
+  }
+
+  Future<void> _push(Widget screen) async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+    if (mounted) _reload();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final deckRepo = context.watch<DeckRepository>();
-    final theme = Theme.of(context);
     final colors = context.appColors;
+    final decks = _decks;
 
     return Scaffold(
-      appBar: AppBar(
-        titleSpacing: AppSpacing.lg,
-        title: const Row(
-          children: [
-            Icon(Icons.view_agenda_outlined, color: AppColors.accent, size: 21),
-            SizedBox(width: AppSpacing.sm + 2),
-            Text('Anki'),
-          ],
-        ),
-        actions: [
-          _TopAction(
-            icon: Icons.query_stats_outlined,
-            tooltip: 'Статистика',
-            onPressed: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => const StatsScreen(title: 'Все колоды'))),
+      body: CustomScrollView(
+        slivers: [
+          CupertinoSliverNavigationBar(
+            largeTitle: const Text('Сегодня'),
+            backgroundColor: colors.bg.withValues(alpha: 0.94),
+            border: null,
+            trailing: CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(44, 44),
+              onPressed: () => _push(const NoteEditorScreen()),
+              child: Icon(
+                CupertinoIcons.plus,
+                size: 26,
+                color: context.accentForeground,
+                semanticLabel: 'Новая карточка',
+              ),
+            ),
           ),
-          const SizedBox(width: AppSpacing.xs),
-          _TopAction(
-            icon: Icons.file_download_outlined,
-            tooltip: 'Импорт .apkg',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ImportScreen())),
-          ),
-          const SizedBox(width: AppSpacing.md),
+          if (decks == null)
+            const SliverFillRemaining(child: Center(child: CupertinoActivityIndicator()))
+          else if (decks.isEmpty)
+            SliverFillRemaining(hasScrollBody: false, child: _EmptyState(onCreate: () => createDeckWithPrompt(context)))
+          else
+            SliverList.list(children: [
+              Padding(
+                // Same left edge as the large title above it.
+                padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                child: Text(_todayLabel(DateTime.now()), style: TextStyle(fontSize: 15, color: colors.muted)),
+              ),
+              const SizedBox(height: AppSpacing.md),
+              _TodayCard(
+                counts: _counts,
+                habit: _habit,
+                onStart: () => _push(const StudyScreen(deckId: null, deckName: 'Все колоды')),
+                onAddCard: () => _push(const NoteEditorScreen()),
+              ),
+              SectionHeader(
+                'Колоды',
+                trailing: _Legend(colors: colors),
+              ),
+              GroupedSection(children: [
+                for (final deck in decks)
+                  _DeckRow(
+                    deck: deck,
+                    counts: _counts[deck.id],
+                    onTap: () => _push(StudyScreen(deckId: deck.id, deckName: deck.name)),
+                    onLongPress: () async {
+                      await showDeckActions(context, deck);
+                      if (mounted) _reload();
+                    },
+                  ),
+              ]),
+              const SectionFooter('Удерживайте колоду, чтобы открыть карточки, настройки и другие действия.'),
+              _NewDeckLink(onAdd: () => createDeckWithPrompt(context)),
+            ]),
         ],
       ),
-      body: StreamBuilder<List<Deck>>(
-        stream: deckRepo.watchDecks(),
-        builder: (context, snapshot) {
-          final decks = snapshot.data ?? const <Deck>[];
-          if (decks.isEmpty) {
-            return _EmptyState(onCreateDeck: () => _createDeck(context));
-          }
+    );
+  }
 
-          return Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 900),
-              child: ListView(
-                padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, 128),
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text('СЕГОДНЯ', style: theme.textTheme.labelSmall),
-                            const SizedBox(height: AppSpacing.sm),
-                            Text('Колоды', style: theme.textTheme.headlineSmall),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Выберите тему и продолжите с того места, где остановились.',
-                              style: theme.textTheme.bodyMedium?.copyWith(color: colors.muted),
-                            ),
-                          ],
-                        ),
-                      ),
-                      Text('${decks.length} ${_deckWord(decks.length)}', style: theme.textTheme.bodySmall),
-                    ],
+  static const _weekdays = ['понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота', 'воскресенье'];
+  static const _months = [
+    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+  ];
+
+  static String _todayLabel(DateTime d) {
+    final weekday = _weekdays[d.weekday - 1];
+    return '${weekday[0].toUpperCase()}${weekday.substring(1)}, ${d.day} ${_months[d.month - 1]}';
+  }
+}
+
+/// "+ Новая колода" link under the deck list.
+class _NewDeckLink extends StatelessWidget {
+  const _NewDeckLink({required this.onAdd});
+
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(AppSpacing.md, AppSpacing.sm, AppSpacing.md, AppSpacing.xl),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: CupertinoButton(
+          padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          onPressed: onAdd,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(CupertinoIcons.add_circled, size: 20, color: context.accentForeground),
+              const SizedBox(width: 6),
+              Text('Новая колода', style: TextStyle(fontSize: 16, color: context.accentForeground)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String plural(int n, String one, String few, String many) {
+  final mod10 = n % 10;
+  final mod100 = n % 100;
+  if (mod10 == 1 && mod100 != 11) return one;
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return few;
+  return many;
+}
+
+/// Colours of the three per-deck numbers, matching Anki's own convention.
+class DueColors {
+  const DueColors._();
+  static Color newCards(bool dark) => dark ? const Color(0xFF7FAEDB) : AppColors.easy;
+  static Color learning(bool dark) => dark ? const Color(0xFFE08B89) : AppColors.again;
+  static Color review(bool dark) => dark ? const Color(0xFF6FC2A2) : AppColors.good;
+}
+
+class _Legend extends StatelessWidget {
+  const _Legend({required this.colors});
+
+  final AppSemanticColors colors;
+
+  @override
+  Widget build(BuildContext context) {
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    Widget dot(Color c, String label) => Padding(
+          padding: const EdgeInsets.only(left: 10),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Container(width: 7, height: 7, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
+            const SizedBox(width: 4),
+            Text(label, style: TextStyle(fontSize: 12, color: colors.muted)),
+          ]),
+        );
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      dot(DueColors.newCards(dark), 'новые'),
+      dot(DueColors.learning(dark), 'учу'),
+      dot(DueColors.review(dark), 'повтор'),
+    ]);
+  }
+}
+
+class _TodayCard extends StatelessWidget {
+  const _TodayCard({required this.counts, required this.habit, required this.onStart, required this.onAddCard});
+
+  final Map<int, DueQueueCounts> counts;
+  final StudyHabit? habit;
+  final VoidCallback onStart;
+  final VoidCallback onAddCard;
+
+  @override
+  Widget build(BuildContext context) {
+    final total = counts.values.fold<int>(0, (s, c) => s + c.total);
+    final habit = this.habit;
+    final done = total == 0;
+    const onCard = Colors.white;
+    final onCardMuted = Colors.white.withValues(alpha: 0.78);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: Container(
+        // Same inner padding as the deck rows, so the card's text and the
+        // deck names start on one line.
+        padding: const EdgeInsets.all(AppSpacing.md),
+        decoration: BoxDecoration(color: AppColors.accent, borderRadius: BorderRadius.circular(20)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(done ? 'На сегодня всё' : 'К повторению', style: TextStyle(fontSize: 14, color: onCardMuted)),
+            const SizedBox(height: 2),
+            if (done)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 4),
+                child: Row(children: [
+                  Icon(CupertinoIcons.checkmark_seal_fill, color: onCard, size: 34),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Все карточки повторены',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: onCard),
+                    ),
                   ),
-                  const SizedBox(height: AppSpacing.lg),
-                  ...decks.map(
-                    (deck) => Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: _DeckTile(deck: deck),
+                ]),
+              )
+            else
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    '$total',
+                    style: const TextStyle(fontSize: 44, fontWeight: FontWeight.w700, color: onCard, letterSpacing: -1),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${plural(total, 'карточка', 'карточки', 'карточек')}'
+                      '${habit == null ? '' : ' · ≈ ${habit.estimateMinutes(total)} мин'}',
+                      style: TextStyle(fontSize: 15, color: onCardMuted),
                     ),
                   ),
                 ],
               ),
+            const SizedBox(height: AppSpacing.md),
+            _WeekStrip(habit: habit),
+            const SizedBox(height: 6),
+            Text(_streakLabel(habit), style: TextStyle(fontSize: 13, color: onCardMuted)),
+            const SizedBox(height: AppSpacing.md),
+            SizedBox(
+              width: double.infinity,
+              child: CupertinoButton(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                padding: const EdgeInsets.symmetric(vertical: 13),
+                onPressed: done ? onAddCard : onStart,
+                child: Text(
+                  done ? 'Добавить карточку' : 'Начать занятие',
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppColors.accentStrong),
+                ),
+              ),
             ),
-          );
-        },
-      ),
-      floatingActionButton: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          FloatingActionButton.small(
-            heroTag: 'addDeck',
-            tooltip: 'Новая колода',
-            backgroundColor: theme.colorScheme.surface,
-            foregroundColor: AppColors.accent,
-            elevation: 2,
-            onPressed: () => _createDeck(context),
-            child: const Icon(Icons.create_new_folder_outlined, size: 20),
-          ),
-          const SizedBox(width: AppSpacing.sm),
-          FloatingActionButton.extended(
-            heroTag: 'addNote',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const NoteEditorScreen())),
-            icon: const Icon(Icons.add_rounded, size: 21),
-            label: const Text('Новая карточка'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static String _deckWord(int count) {
-    final mod10 = count % 10;
-    final mod100 = count % 100;
-    if (mod10 == 1 && mod100 != 11) return 'колода';
-    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'колоды';
-    return 'колод';
-  }
-
-  Future<void> _createDeck(BuildContext context) async {
-    final controller = TextEditingController();
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Новая колода'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(
-            labelText: 'Название',
-            hintText: 'Например: Английские слова',
-          ),
-          onSubmitted: (v) => Navigator.pop(context, v.trim()),
+          ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
-          FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Создать')),
-        ],
       ),
     );
-    if (name != null && name.isNotEmpty && context.mounted) {
-      try {
-        await context.read<DeckRepository>().createDeck(name);
-      } catch (e) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Не удалось создать колоду "$name": уже существует')),
-        );
-      }
-    }
+  }
+
+  static String _streakLabel(StudyHabit? habit) {
+    if (habit == null) return ' ';
+    final n = habit.streakDays;
+    if (n == 0) return 'Начните серию сегодня';
+    return '$n ${plural(n, 'день', 'дня', 'дней')} подряд';
   }
 }
 
-class _TopAction extends StatelessWidget {
-  const _TopAction({required this.icon, required this.tooltip, required this.onPressed});
+class _WeekStrip extends StatelessWidget {
+  const _WeekStrip({required this.habit});
 
-  final IconData icon;
-  final String tooltip;
-  final VoidCallback onPressed;
+  final StudyHabit? habit;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 42,
-      height: 42,
-      decoration: BoxDecoration(
-        color: context.appColors.surface,
-        borderRadius: BorderRadius.circular(kAppRadiusSmall),
-        border: Border.all(color: context.appColors.border),
-      ),
-      child: IconButton(icon: Icon(icon, size: 20), tooltip: tooltip, onPressed: onPressed),
+    final week = habit?.lastWeek ?? List.filled(7, false);
+    return Row(
+      children: [
+        for (var i = 0; i < week.length; i++) ...[
+          if (i > 0) const SizedBox(width: 4),
+          Expanded(
+            child: Container(
+              height: 5,
+              decoration: BoxDecoration(
+                color: week[i] ? const Color(0xFFA6D8C4) : Colors.white.withValues(alpha: 0.22),
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _DeckRow extends StatelessWidget {
+  const _DeckRow({required this.deck, required this.counts, required this.onTap, required this.onLongPress});
+
+  final Deck deck;
+  final DueQueueCounts? counts;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final counts = this.counts;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    final finished = counts != null && counts.total == 0;
+
+    Widget number(int n, Color c) => n == 0
+        ? const SizedBox.shrink()
+        : Padding(
+            padding: const EdgeInsets.only(left: 10),
+            child: Text(
+              '$n',
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: c, fontFeatures: const [
+                FontFeature.tabularFigures(),
+              ]),
+            ),
+          );
+
+    return GroupedRow(
+      title: deck.name,
+      muted: finished,
+      onTap: onTap,
+      onLongPress: onLongPress,
+      trailing: counts == null
+          ? const SizedBox.shrink()
+          : finished
+              ? Icon(CupertinoIcons.checkmark_alt, size: 18, color: DueColors.review(dark))
+              : Row(mainAxisSize: MainAxisSize.min, children: [
+                  number(counts.newCount, DueColors.newCards(dark)),
+                  number(counts.learningCount, DueColors.learning(dark)),
+                  number(counts.reviewCount, DueColors.review(dark)),
+                ]),
     );
   }
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({required this.onCreateDeck});
+  const _EmptyState({required this.onCreate});
 
-  final VoidCallback onCreateDeck;
+  final VoidCallback onCreate;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.appColors;
-    return Center(
-      child: Container(
-        width: 420,
-        margin: const EdgeInsets.all(AppSpacing.xl),
-        padding: const EdgeInsets.fromLTRB(AppSpacing.xl, 36, AppSpacing.xl, AppSpacing.xl),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(kAppRadius),
-          border: Border.all(color: colors.border),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.style_outlined, size: 38, color: AppColors.accent),
-            const SizedBox(height: AppSpacing.lg),
-            Text('Создайте первую колоду', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: AppSpacing.sm),
-            Text(
-              'Соберите карточки по теме. Расписание повторений приложение рассчитает само.',
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: colors.muted),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppSpacing.lg),
-            FilledButton.icon(
-              onPressed: onCreateDeck,
-              icon: const Icon(Icons.add_rounded, size: 19),
-              label: const Text('Создать колоду'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _DeckTile extends StatefulWidget {
-  const _DeckTile({required this.deck});
-
-  final Deck deck;
-
-  @override
-  State<_DeckTile> createState() => _DeckTileState();
-}
-
-class _DeckTileState extends State<_DeckTile> {
-  late Future<DueQueueCounts> _counts;
-
-  @override
-  void initState() {
-    super.initState();
-    _counts = context.read<StudyRepository>().counts(widget.deck.id);
-  }
-
-  @override
-  void didUpdateWidget(_DeckTile oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.deck != widget.deck) {
-      _counts = context.read<StudyRepository>().counts(widget.deck.id);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final deck = widget.deck;
-    final colors = context.appColors;
-    final textTheme = Theme.of(context).textTheme;
-
-    return FutureBuilder<DueQueueCounts>(
-      future: _counts,
-      builder: (context, snapshot) {
-        final counts = snapshot.data;
-        final totalDue = counts == null ? null : counts.newCount + counts.learningCount + counts.reviewCount;
-
-        return Material(
-          color: colors.surface,
-          elevation: 0,
-          borderRadius: BorderRadius.circular(kAppRadius),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(kAppRadius),
-            onTap: () => Navigator.of(context)
-                .push(MaterialPageRoute(builder: (_) => StudyScreen(deckId: deck.id, deckName: deck.name))),
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(AppSpacing.md, 18, AppSpacing.sm, 18),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(kAppRadius),
-                border: Border.all(color: colors.border),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 4,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      color: totalDue == 0 ? colors.border : AppColors.accent,
-                      borderRadius: BorderRadius.circular(99),
-                    ),
-                  ),
-                  const SizedBox(width: AppSpacing.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(deck.name, style: textTheme.titleMedium?.copyWith(fontSize: 17)),
-                        const SizedBox(height: AppSpacing.sm),
-                        if (counts == null)
-                          Text('Загрузка…', style: textTheme.bodySmall)
-                        else if (totalDue == 0)
-                          Row(
-                            children: [
-                              const Icon(Icons.check_circle_outline, size: 15, color: AppColors.good),
-                              const SizedBox(width: 6),
-                              Text('На сегодня всё', style: textTheme.bodySmall?.copyWith(color: AppColors.good)),
-                            ],
-                          )
-                        else
-                          Wrap(
-                            spacing: AppSpacing.sm,
-                            runSpacing: AppSpacing.xs,
-                            children: [
-                              _CountPill(label: 'новые', count: counts.newCount, color: AppColors.easy),
-                              _CountPill(label: 'изучение', count: counts.learningCount, color: AppColors.again),
-                              _CountPill(label: 'повтор', count: counts.reviewCount, color: AppColors.good),
-                            ],
-                          ),
-                      ],
-                    ),
-                  ),
-                  if (totalDue != null && totalDue > 0) ...[
-                    const SizedBox(width: AppSpacing.md),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text('$totalDue', style: textTheme.titleLarge?.copyWith(color: AppColors.accentStrong)),
-                        Text('осталось', style: textTheme.bodySmall),
-                      ],
-                    ),
-                  ],
-                  const SizedBox(width: AppSpacing.sm),
-                  PopupMenuButton<String>(
-                    icon: Icon(Icons.more_horiz, color: colors.muted, size: 20),
-                    onSelected: (value) {
-                      switch (value) {
-                        case 'stats':
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => StatsScreen(deckId: deck.id, title: deck.name)),
-                          );
-                        case 'browse':
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => CardBrowserScreen(deckId: deck.id, deckName: deck.name)),
-                          );
-                        case 'export':
-                          exportDecksToFile(context, deckIds: [deck.id], suggestedFileName: deck.name);
-                        case 'settings':
-                          Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => DeckSettingsScreen(deckId: deck.id, deckName: deck.name)),
-                          );
-                        case 'rename':
-                          _rename(context);
-                        case 'delete':
-                          _confirmDelete(context);
-                      }
-                    },
-                    itemBuilder: (context) => const [
-                      PopupMenuItem(value: 'browse', child: Text('Карточки')),
-                      PopupMenuItem(value: 'stats', child: Text('Статистика')),
-                      PopupMenuItem(value: 'export', child: Text('Экспорт .apkg')),
-                      PopupMenuItem(value: 'settings', child: Text('Настройки колоды')),
-                      PopupMenuItem(value: 'rename', child: Text('Переименовать')),
-                      PopupMenuItem(value: 'delete', child: Text('Удалить колоду')),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+    return Padding(
+      padding: const EdgeInsets.all(AppSpacing.xl),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(CupertinoIcons.rectangle_stack_badge_plus, size: 52, color: AppColors.accent),
+          const SizedBox(height: AppSpacing.lg),
+          Text('Создайте первую колоду', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: AppSpacing.sm),
+          Text(
+            'Соберите карточки по теме, а расписание повторений приложение рассчитает само.',
+            style: TextStyle(fontSize: 15, height: 1.4, color: colors.muted),
+            textAlign: TextAlign.center,
           ),
-        );
-      },
-    );
-  }
-
-  Future<void> _rename(BuildContext context) async {
-    final controller = TextEditingController(text: widget.deck.name);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Переименовать колоду'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Название колоды'),
-          onSubmitted: (v) => Navigator.pop(context, v.trim()),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Отмена')),
-          FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Сохранить')),
+          const SizedBox(height: AppSpacing.lg),
+          FilledButton(onPressed: onCreate, child: const Text('Создать колоду')),
         ],
-      ),
-    );
-    if (name == null || name.isEmpty || name == widget.deck.name || !context.mounted) return;
-    try {
-      await context.read<DeckRepository>().renameDeck(widget.deck.id, name);
-    } catch (e) {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Не удалось переименовать: колода "$name" уже существует')),
-      );
-    }
-  }
-
-  Future<void> _confirmDelete(BuildContext context) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Удалить колоду "${widget.deck.name}"?'),
-        content: const Text('Все карточки этой колоды будут удалены безвозвратно.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.again),
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Удалить'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true && context.mounted) {
-      await context.read<DeckRepository>().deleteDeck(widget.deck.id);
-    }
-  }
-}
-
-class _CountPill extends StatelessWidget {
-  const _CountPill({required this.label, required this.count, required this.color});
-
-  final String label;
-  final int count;
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    if (count == 0) return const SizedBox.shrink();
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        color: context.appColors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: context.appColors.border),
-      ),
-      child: Text(
-        '$count · $label',
-        style: TextStyle(color: color, fontSize: 11.5, fontWeight: FontWeight.w700),
       ),
     );
   }
