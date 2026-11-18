@@ -8,9 +8,15 @@ on:
       - "anki_flutter/**"
       - ".github/workflows/ios-ipa.yml"
 
+# A newer push supersedes a build still waiting for a (scarce) Mac runner.
+concurrency:
+  group: ios-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: macos-latest
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: anki_flutter
