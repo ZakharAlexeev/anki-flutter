@@ -28,7 +28,7 @@ void main() {
 
     final notetypeRows = await db.select(db.notetypes).get();
     final deckConfigRowsAfterSeeding = await db.select(db.deckConfigs).get();
-    expect(await db.select(db.decks).get(), hasLength(1), reason: 'ensureSeeded must not create a second "Default" deck');
+    expect(await db.select(db.decks).get(), isEmpty, reason: 'a fresh install starts without any decks');
     expect(notetypeRows, hasLength(2), reason: 'ensureSeeded must not duplicate the seeded note types');
     expect(deckConfigRowsAfterSeeding, hasLength(1), reason: 'ensureSeeded must not duplicate the default deck config');
 
@@ -40,7 +40,7 @@ void main() {
       await decks.createDeck('Extra $i');
     }
 
-    expect(await db.select(db.decks).get(), hasLength(4)); // seeded "Default" + 3 extra
+    expect(await db.select(db.decks).get(), hasLength(3));
     expect(await db.select(db.deckConfigs).get(), hasLength(1), reason: 'createDeck must reuse the existing default config');
   });
 }

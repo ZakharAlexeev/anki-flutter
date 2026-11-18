@@ -33,8 +33,7 @@ void main() {
     notes = NoteRepository(db, decks, notetypes);
     study = StudyRepository(db);
 
-    final defaultDeck = await (db.select(db.decks)..where((d) => d.name.equals('Default'))).getSingle();
-    deckId = defaultDeck.id;
+    deckId = await decks.createDeck('Default');
   });
 
   tearDown(() async {

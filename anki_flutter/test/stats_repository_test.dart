@@ -30,8 +30,7 @@ void main() {
     final notes = NoteRepository(db, decks, notetypes);
     stats = StatsRepository(db);
 
-    final deck = (await db.select(db.decks).get()).single;
-    deckId = deck.id;
+    deckId = await decks.createDeck('Default');
     final basic = (await db.select(db.notetypes).get()).firstWhere((n) => n.name == 'Basic');
     await notes.createNote(notetypeId: basic.id, deckId: deckId, fields: ['Q', 'A']);
     final seedCard = (await db.select(db.cards).get()).single;

@@ -20,8 +20,7 @@ void main() {
     await db.ensureSeeded();
     decks = DeckRepository(db);
 
-    final deck = await (db.select(db.decks)..where((d) => d.name.equals('Default'))).getSingle();
-    deckId = deck.id;
+    deckId = await decks.createDeck('Default');
   });
 
   tearDown(() async => db.close());

@@ -10,7 +10,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('app boots to the deck list with the seeded Default deck', (WidgetTester tester) async {
+  testWidgets('a fresh install boots to the empty home screen', (WidgetTester tester) async {
     final db = AppDatabase.forTesting(NativeDatabase.memory());
     addTearDown(db.close);
     await db.ensureSeeded();
@@ -27,8 +27,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Колоды'), findsOneWidget);
-    expect(find.text('Default'), findsOneWidget);
+    expect(find.text('Сегодня'), findsWidgets);
+    expect(find.text('Создайте первую колоду'), findsOneWidget);
 
     // Tear down the widget tree (and with it, drift's stream subscriptions)
     // inside the test body so the debounce timer it schedules on cancel has

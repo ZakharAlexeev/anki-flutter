@@ -39,7 +39,7 @@ void main() {
     await notetypes.ensureSeeded();
     final notes = NoteRepository(sourceDb, decks, notetypes);
 
-    final deck = (await sourceDb.select(sourceDb.decks).get()).single;
+    final deck = await decks.deckById(await decks.createDeck('Default'));
     final basic = (await sourceDb.select(sourceDb.notetypes).get()).firstWhere((n) => n.name == 'Basic');
     await notes.createNote(notetypeId: basic.id, deckId: deck.id, fields: ['Capital of France?', 'Paris']);
 
