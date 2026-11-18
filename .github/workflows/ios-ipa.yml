@@ -8,6 +8,10 @@ on:
       - "anki_flutter/**"
       - ".github/workflows/ios-ipa.yml"
 
+# If a run is cancelled with "The job was not acquired by Runner", GitHub
+# had no free macOS machine: re-run it from the Actions tab ("Re-run all
+# jobs") or start a fresh one with "Run workflow".
+#
 # A newer push supersedes a build still waiting for a (scarce) Mac runner.
 concurrency:
   group: ios-ipa-${{ github.ref }}
