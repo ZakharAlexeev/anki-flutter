@@ -1,7 +1,15 @@
 name: Build unsigned iOS IPA
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      runner:
+        description: "macOS machine (Intel queues are often shorter when Apple Silicon is busy)"
+        type: choice
+        default: macos-latest
+        options:
+          - macos-latest
+          - macos-15-intel
   push:
     branches: [main]
     paths:
@@ -19,7 +27,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: macos-latest
+    runs-on: ${{ inputs.runner || 'macos-latest' }}
     timeout-minutes: 60
     defaults:
       run:
