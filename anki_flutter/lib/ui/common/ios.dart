@@ -151,6 +151,206 @@ class GroupedRow extends StatelessWidget {
   }
 }
 
+// --- form rows (iOS Settings / Contacts style) ------------------------------
+
+/// A borderless text field for use inside a [GroupedSection]: the field
+/// is the row, as in Notes or Contacts. Multi-line by default.
+class GroupedTextArea extends StatelessWidget {
+  const GroupedTextArea({
+    super.key,
+    required this.controller,
+    this.placeholder,
+    this.focusNode,
+    this.autofocus = false,
+    this.multiline = true,
+    this.serif = false,
+    this.textInputAction,
+    this.onSubmitted,
+  });
+
+  final TextEditingController controller;
+  final String? placeholder;
+  final FocusNode? focusNode;
+  final bool autofocus;
+  final bool multiline;
+
+  /// Card content reads like the card itself (Georgia), as on the study screen.
+  final bool serif;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 4),
+      child: TextField(
+        controller: controller,
+        focusNode: focusNode,
+        autofocus: autofocus,
+        minLines: 1,
+        maxLines: multiline ? null : 1,
+        keyboardType: multiline ? TextInputType.multiline : TextInputType.text,
+        textInputAction: textInputAction,
+        onSubmitted: onSubmitted,
+        textCapitalization: TextCapitalization.sentences,
+        style: TextStyle(fontSize: serif ? 19 : 16, fontFamily: serif ? 'Georgia' : null, color: colors.text),
+        decoration: InputDecoration(
+          hintText: placeholder,
+          hintStyle: TextStyle(fontSize: 16, fontFamily: null, color: colors.muted.withValues(alpha: 0.7)),
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          filled: false,
+          isDense: true,
+          contentPadding: const EdgeInsets.symmetric(vertical: 11),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Label ............ value" with the value editable in place, right
+/// aligned - the iOS Settings pattern for numbers and short text.
+class GroupedValueField extends StatelessWidget {
+  const GroupedValueField({
+    super.key,
+    required this.label,
+    required this.controller,
+    this.suffix,
+    this.numeric = true,
+    this.placeholder,
+    this.fieldWidth = 96,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final String? suffix;
+  final bool numeric;
+  final String? placeholder;
+  final double fieldWidth;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 50),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        child: Row(
+          children: [
+            Expanded(child: Text(label, style: TextStyle(fontSize: 16, color: colors.text, letterSpacing: -0.2))),
+            const SizedBox(width: AppSpacing.sm),
+            SizedBox(
+              width: fieldWidth,
+              child: TextField(
+                controller: controller,
+                textAlign: TextAlign.end,
+                keyboardType: numeric
+                    ? const TextInputType.numberWithOptions(decimal: true)
+                    : TextInputType.text,
+                style: TextStyle(fontSize: 16, color: context.accentForeground),
+                decoration: InputDecoration(
+                  hintText: placeholder,
+                  hintStyle: TextStyle(color: colors.muted.withValues(alpha: 0.7)),
+                  border: InputBorder.none,
+                  enabledBorder: InputBorder.none,
+                  focusedBorder: InputBorder.none,
+                  filled: false,
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                ),
+              ),
+            ),
+            if (suffix != null) ...[
+              const SizedBox(width: 4),
+              Text(suffix!, style: TextStyle(fontSize: 16, color: colors.muted)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// "Label .... value >" that opens a choice (an action sheet).
+class GroupedPickerRow extends StatelessWidget {
+  const GroupedPickerRow({super.key, required this.label, required this.value, required this.onTap, this.icon, this.iconColor});
+
+  final String label;
+  final String value;
+  final VoidCallback? onTap;
+  final IconData? icon;
+  final Color? iconColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return GroupedRow(
+      title: label,
+      icon: icon,
+      iconColor: iconColor ?? AppColors.accent,
+      onTap: onTap,
+      trailing: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 190),
+        child: Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.end,
+          style: TextStyle(fontSize: 16, color: context.appColors.muted),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Label ............ (switch)".
+class GroupedSwitchRow extends StatelessWidget {
+  const GroupedSwitchRow({super.key, required this.label, required this.value, required this.onChanged});
+
+  final String label;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return GroupedRow(
+      title: label,
+      chevron: false,
+      trailing: CupertinoSwitch(value: value, activeTrackColor: AppColors.accent, onChanged: onChanged),
+    );
+  }
+}
+
+/// A text button for the navigation bar ("Добавить", "Готово"), bold like
+/// iOS's primary bar action.
+class NavBarAction extends StatelessWidget {
+  const NavBarAction({super.key, required this.label, required this.onPressed, this.busy = false});
+
+  final String label;
+  final VoidCallback? onPressed;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    if (busy) {
+      return const Padding(padding: EdgeInsets.symmetric(horizontal: AppSpacing.md), child: CupertinoActivityIndicator());
+    }
+    return CupertinoButton(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      onPressed: onPressed,
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+          color: onPressed == null ? context.appColors.muted : context.accentForeground,
+        ),
+      ),
+    );
+  }
+}
+
 /// iOS-style alert with a single text field; returns the trimmed text, or
 /// null when cancelled.
 Future<String?> showNamePrompt(

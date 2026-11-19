@@ -2,7 +2,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../data/backup/backup_service.dart';
 import '../../data/db/database.dart';
+import '../backup/backups_screen.dart';
 import '../../data/repositories/deck_repository.dart';
 import '../../data/repositories/study_repository.dart';
 import '../common/ios.dart';
@@ -192,6 +194,17 @@ class MoreScreen extends StatelessWidget {
             ),
           ]),
           const SectionFooter('Файлы совместимы с Anki на компьютере и AnkiMobile.'),
+          if (context.read<BackupService?>() != null) ...[
+            const SectionHeader('Данные'),
+            GroupedSection(children: [
+              GroupedRow(
+                title: 'Резервные копии',
+                icon: CupertinoIcons.archivebox,
+                iconColor: const Color(0xFF6F746C),
+                onTap: () => push(const BackupsScreen()),
+              ),
+            ]),
+          ],
         ],
       ),
     );

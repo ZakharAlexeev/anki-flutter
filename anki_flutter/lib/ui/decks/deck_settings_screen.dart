@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,6 +8,7 @@ import '../../data/repositories/deck_repository.dart';
 import '../../data/repositories/sched_config_mapper.dart';
 import '../../data/repositories/study_repository.dart';
 import '../../domain/scheduler/fsrs.dart';
+import '../common/ios.dart';
 import '../theme/app_theme.dart';
 
 /// Exposes the deck's [DeckConfig] (learning/relearning steps, graduating
@@ -91,8 +93,9 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
     if (!mounted) return;
     setState(() {
       _config = config;
-      _learningSteps.text = config.learningStepsMin;
-      _relearningSteps.text = config.relearningStepsMin;
+      // "1, 10" rather than "1,10", which reads like a decimal number.
+      _learningSteps.text = config.learningStepsMin.split(',').map((s) => s.trim()).join(', ');
+      _relearningSteps.text = config.relearningStepsMin.split(',').map((s) => s.trim()).join(', ');
       _graduatingInterval.text = '${config.graduatingIntervalDays}';
       _easyInterval.text = '${config.easyIntervalDays}';
       _startingEase.text = '${config.startingEase / 10}'; // stored as permille, shown as %
@@ -265,125 +268,102 @@ class _DeckSettingsScreenState extends State<DeckSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final config = _config;
+    final sm2Note = _fsrsEnabled ? 'Сейчас включён FSRS: эти значения не используются.' : null;
     return Scaffold(
-      appBar: AppBar(title: Text('Настройки — ${widget.deckName}')),
+      appBar: AppBar(
+        title: Text(widget.deckName),
+        actions: [NavBarAction(label: 'Сохранить', busy: _saving, onPressed: config == null ? null : _save)],
+      ),
       body: config == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CupertinoActivityIndicator())
           : Align(
               alignment: Alignment.topCenter,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 560),
+                constraints: const BoxConstraints(maxWidth: 620),
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md, AppSpacing.lg, AppSpacing.xl),
+                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  padding: const EdgeInsets.only(bottom: AppSpacing.xl),
                   children: [
-                    Text('РАСПИСАНИЕ', style: Theme.of(context).textTheme.labelSmall),
-                    const SizedBox(height: AppSpacing.sm),
-                    Text('Параметры повторения', style: Theme.of(context).textTheme.headlineSmall),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Настройте темп обучения. Значения применяются только к этой колоде.',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: context.appColors.muted),
-                    ),
-                    _section('Шаги обучения'),
-                    _numRow(_learningSteps, 'Новые (мин, через запятую)'),
-                    _numRow(_relearningSteps, 'Повтор после ошибки (мин, через запятую)'),
-                    _section('Интервалы'),
-                    _numRow(_graduatingInterval, 'Интервал после обучения (дни)'),
-                    _numRow(_easyInterval, 'Интервал "Легко" (дни)'),
-                    _numRow(_maximumIntervalDays, 'Максимальный интервал (дни)'),
-                    _section('Коэффициент лёгкости'),
-                    _numRow(_startingEase, 'Начальный (%)'),
-                    _numRow(_minEase, 'Минимальный (%)'),
-                    _numRow(_easyBonusPct, 'Бонус "Легко" (%)'),
-                    _numRow(_intervalModifierPct, 'Множитель интервала (%)'),
-                    _numRow(_hardIntervalPct, 'Множитель "Трудно" (%)'),
-                    _numRow(_newIntervalPct, 'Множитель после провала (%)'),
-                    _numRow(_minimumLapseInterval, 'Минимальный интервал после провала (дни)'),
-                    _section('FSRS'),
-                    Text(
-                      _fsrsEnabled
-                          ? 'FSRS включён для всей коллекции (вкладка «Ещё»). Коэффициент лёгкости и '
-                              'множители выше при этом не используются.'
-                          : 'Сейчас используется SM-2. Включить FSRS можно во вкладке «Ещё».',
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: AppSpacing.md),
-                    _numRow(_desiredRetention, 'Желаемая запоминаемость (%)'),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: TextField(
-                        controller: _fsrsParams,
-                        minLines: 2,
-                        maxLines: 5,
-                        keyboardType: TextInputType.multiline,
-                        decoration: const InputDecoration(
-                          labelText: 'Параметры FSRS',
-                          hintText: 'Пусто — параметры по умолчанию. Можно вставить из Anki на компьютере.',
-                        ),
+                    const SectionHeader('В день'),
+                    GroupedSection(children: [
+                      GroupedValueField(label: 'Новых карточек', controller: _newPerDay),
+                      GroupedValueField(label: 'Повторений', controller: _reviewsPerDay),
+                    ]),
+                    const SectionHeader('Шаги обучения'),
+                    GroupedSection(children: [
+                      GroupedValueField(
+                        label: 'Новые карточки',
+                        controller: _learningSteps,
+                        numeric: false,
+                        suffix: 'мин',
+                        fieldWidth: 120,
                       ),
+                      GroupedValueField(
+                        label: 'После ошибки',
+                        controller: _relearningSteps,
+                        numeric: false,
+                        suffix: 'мин',
+                        fieldWidth: 120,
+                      ),
+                    ]),
+                    const SectionFooter('Через запятую, например «1, 10». 1440 минут — это сутки.'),
+                    const SectionHeader('Трудные карточки'),
+                    GroupedSection(children: [
+                      GroupedValueField(label: 'Порог (ошибок)', controller: _leechThreshold),
+                      GroupedSwitchRow(
+                        label: 'Откладывать',
+                        value: _leechSuspends,
+                        onChanged: (v) => setState(() => _leechSuspends = v),
+                      ),
+                    ]),
+                    const SectionFooter(
+                      'Карточка, которую забыли столько раз, получает метку leech. '
+                      'Если «Откладывать» выключено (как в Anki), она остаётся в повторениях.',
                     ),
-                    _numRow(_historicalRetention, 'Запоминаемость до FSRS (%)'),
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: AppSpacing.md),
-                      child: TextField(
+                    const SectionHeader('FSRS'),
+                    GroupedSection(children: [
+                      GroupedValueField(label: 'Желаемая запоминаемость', controller: _desiredRetention, suffix: '%'),
+                      GroupedValueField(label: 'Запоминаемость до FSRS', controller: _historicalRetention, suffix: '%'),
+                      GroupedValueField(
+                        label: 'Не учитывать ответы до',
                         controller: _ignoreBefore,
-                        decoration: const InputDecoration(
-                          labelText: 'Не учитывать ответы до даты',
-                          hintText: 'ГГГГ-ММ-ДД, можно оставить пустым',
-                        ),
+                        numeric: false,
+                        placeholder: 'ГГГГ-ММ-ДД',
+                        fieldWidth: 130,
                       ),
-                    ),
-                    _section('Лимиты и leech'),
-                    _numRow(_newPerDay, 'Новых карточек в день'),
-                    _numRow(_reviewsPerDay, 'Повторений в день'),
-                    _numRow(_leechThreshold, 'Порог leech (число ошибок)'),
-                    SwitchListTile.adaptive(
-                      contentPadding: EdgeInsets.zero,
-                      value: _leechSuspends,
-                      onChanged: (v) => setState(() => _leechSuspends = v),
-                      title: const Text('Откладывать трудные карточки'),
-                      subtitle: const Text(
-                        'Выключено, как в Anki: карточка только получает метку leech и остаётся в повторениях.',
+                    ]),
+                    const SectionHeader('Параметры FSRS'),
+                    GroupedSection(children: [
+                      GroupedTextArea(
+                        controller: _fsrsParams,
+                        placeholder: 'Пусто — параметры по умолчанию',
                       ),
+                    ]),
+                    SectionFooter(
+                      '${_fsrsEnabled ? 'FSRS включён' : 'Сейчас используется SM-2; FSRS включается во вкладке «Ещё»'}. '
+                      'Параметры можно подобрать в Anki на компьютере («Оптимизировать») и вставить сюда.',
                     ),
-                    const SizedBox(height: AppSpacing.lg),
-                    SizedBox(
-                      height: 48,
-                      child: FilledButton(
-                        onPressed: _saving ? null : _save,
-                        child: _saving
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : const Text('Сохранить'),
-                      ),
-                    ),
+                    const SectionHeader('Интервалы'),
+                    GroupedSection(children: [
+                      GroupedValueField(label: 'После обучения', controller: _graduatingInterval, suffix: 'д'),
+                      GroupedValueField(label: 'Для «Легко»', controller: _easyInterval, suffix: 'д'),
+                      GroupedValueField(label: 'Максимальный', controller: _maximumIntervalDays, suffix: 'д'),
+                      GroupedValueField(label: 'Минимум после ошибки', controller: _minimumLapseInterval, suffix: 'д'),
+                    ]),
+                    const SectionHeader('Лёгкость (SM-2)'),
+                    GroupedSection(children: [
+                      GroupedValueField(label: 'Начальная', controller: _startingEase, suffix: '%'),
+                      GroupedValueField(label: 'Минимальная', controller: _minEase, suffix: '%'),
+                      GroupedValueField(label: 'Бонус «Легко»', controller: _easyBonusPct, suffix: '%'),
+                      GroupedValueField(label: 'Множитель интервала', controller: _intervalModifierPct, suffix: '%'),
+                      GroupedValueField(label: 'Множитель «Трудно»', controller: _hardIntervalPct, suffix: '%'),
+                      GroupedValueField(label: 'Множитель после ошибки', controller: _newIntervalPct, suffix: '%'),
+                    ]),
+                    SectionFooter(sm2Note ?? 'Настройки действуют для всех колод с этим набором параметров.'),
                   ],
                 ),
               ),
             ),
     );
   }
-
-  Widget _section(String title) => Padding(
-        padding: const EdgeInsets.only(top: AppSpacing.xl, bottom: AppSpacing.md),
-        child: Row(
-          children: [
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(width: AppSpacing.md),
-            Expanded(child: Divider(color: context.appColors.border)),
-          ],
-        ),
-      );
-
-  Widget _numRow(TextEditingController controller, String label) => Padding(
-        padding: const EdgeInsets.only(bottom: AppSpacing.md),
-        child: TextField(
-          controller: controller,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          decoration: InputDecoration(labelText: label),
-        ),
-      );
 }
