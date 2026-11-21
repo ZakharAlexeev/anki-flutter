@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../data/backup/backup_service.dart';
 import '../../data/db/database.dart';
+import '../../data/media/pronunciation_service.dart';
 import '../backup/backups_screen.dart';
 import '../../data/repositories/deck_repository.dart';
 import '../../data/repositories/study_repository.dart';
@@ -82,6 +83,56 @@ class _AlgorithmSectionState extends State<_AlgorithmSection> {
   }
 }
 
+/// British / American pronunciation, as an iOS segmented control.
+class _AccentPicker extends StatefulWidget {
+  const _AccentPicker();
+
+  @override
+  State<_AccentPicker> createState() => _AccentPickerState();
+}
+
+class _AccentPickerState extends State<_AccentPicker> {
+  Accent? _accent;
+
+  @override
+  void initState() {
+    super.initState();
+    PronunciationService.accent().then((a) {
+      if (mounted) setState(() => _accent = a);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.appColors;
+    final dark = Theme.of(context).brightness == Brightness.dark;
+    Widget label(String text) => Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Text(text, style: TextStyle(fontSize: 14, color: colors.text)),
+        );
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: SizedBox(
+        width: double.infinity,
+        child: CupertinoSlidingSegmentedControl<Accent>(
+          groupValue: _accent,
+          backgroundColor: dark ? colors.surface : colors.surfaceAlt,
+          thumbColor: dark ? const Color(0xFF454C45) : colors.surface,
+          onValueChanged: (a) {
+            if (a == null) return;
+            setState(() => _accent = a);
+            PronunciationService.setAccent(a);
+          },
+          children: {
+            Accent.british: label('Британский'),
+            Accent.american: label('Американский'),
+          },
+        ),
+      ),
+    );
+  }
+}
+
 /// Light / dark / follow-the-system, as an iOS segmented control.
 class _ThemePicker extends StatelessWidget {
   const _ThemePicker();
@@ -141,6 +192,12 @@ class MoreScreen extends StatelessWidget {
           const SectionHeader('Оформление'),
           const _ThemePicker(),
           const SectionFooter('«Авто» — светлая днём и тёмная ночью, как в настройках телефона.'),
+          const SectionHeader('Произношение'),
+          const _AccentPicker(),
+          const SectionFooter(
+            'Какой акцент искать в словарях для новых карточек. Чтобы переозвучить '
+            'существующую колоду, удерживайте её на главном экране → «Озвучить колоду».',
+          ),
           const SectionHeader('Алгоритм повторений'),
           const _AlgorithmSection(),
           const SectionFooter(

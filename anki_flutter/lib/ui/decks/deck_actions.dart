@@ -8,6 +8,7 @@ import '../common/ios.dart';
 import '../export/export_progress_dialog.dart';
 import '../stats/stats_screen.dart';
 import 'deck_settings_screen.dart';
+import 'voice_deck_screen.dart';
 
 Future<void> createDeckWithPrompt(BuildContext context) async {
   final name = await showNamePrompt(
@@ -24,7 +25,7 @@ Future<void> createDeckWithPrompt(BuildContext context) async {
   }
 }
 
-enum _DeckAction { browse, stats, settings, export, rename, delete }
+enum _DeckAction { browse, stats, voice, settings, export, rename, delete }
 
 /// The long-press menu of a deck row. Returns once the chosen action (if
 /// any) has finished, so the caller can refresh its numbers.
@@ -35,6 +36,7 @@ Future<void> showDeckActions(BuildContext context, Deck deck) async {
     actions: const [
       SheetAction(_DeckAction.browse, 'Карточки колоды'),
       SheetAction(_DeckAction.stats, 'Статистика'),
+      SheetAction(_DeckAction.voice, 'Озвучить колоду'),
       SheetAction(_DeckAction.settings, 'Настройки колоды'),
       SheetAction(_DeckAction.export, 'Экспорт .apkg'),
       SheetAction(_DeckAction.rename, 'Переименовать'),
@@ -50,6 +52,8 @@ Future<void> showDeckActions(BuildContext context, Deck deck) async {
       await push(CardBrowserScreen(deckId: deck.id, deckName: deck.name));
     case _DeckAction.stats:
       await push(StatsScreen(deckId: deck.id, title: deck.name));
+    case _DeckAction.voice:
+      await push(VoiceDeckScreen(deckId: deck.id, deckName: deck.name));
     case _DeckAction.settings:
       await push(DeckSettingsScreen(deckId: deck.id, deckName: deck.name));
     case _DeckAction.export:

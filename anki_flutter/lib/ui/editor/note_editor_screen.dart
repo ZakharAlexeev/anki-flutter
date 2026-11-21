@@ -109,7 +109,7 @@ class _NoteEditorScreenState extends State<NoteEditorScreen> {
     // saving stays instant.
     context.read<PronunciationService>().attachTo(noteId).then((outcome) {
       final message = switch (outcome) {
-        PronunciationOutcome.added => 'Произношение добавлено',
+        PronunciationOutcome.added || PronunciationOutcome.replaced => 'Произношение добавлено',
         PronunciationOutcome.notFound => 'В словарях нет записи произношения',
         PronunciationOutcome.networkError => 'Не удалось скачать произношение: нет связи',
         PronunciationOutcome.alreadyHasAudio || PronunciationOutcome.noEnglishText => null,
